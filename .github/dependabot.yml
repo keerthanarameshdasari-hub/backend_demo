@@ -1,0 +1,47 @@
+# Dependabot version updates.
+# Note: GitHub reads this file from the DEFAULT branch (main). It only takes effect
+# once it has been promoted dev -> test -> main.
+# Docker, Gradle and Bundler are not configured because this repo has no
+# Dockerfile, build.gradle or Gemfile yet; add those ecosystems when the files appear.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    # Wait a few days after a release before proposing it, so a compromised
+    # or broken release has time to be noticed and yanked.
+    cooldown:
+      default-days: 7
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(ci)"
