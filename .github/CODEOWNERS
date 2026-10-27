@@ -1,0 +1,19 @@
+# Code owners for backend_demo.
+# Changes to these paths need a review from the listed owner before they can merge
+# (once "Require review from Code Owners" is enabled in the branch ruleset).
+# Later rules take precedence over earlier ones.
+
+# CI/CD, repo automation and security config
+/.github/                @keerthanarameshdasari-hub
+
+# Infrastructure and container builds
+/infra/                  @keerthanarameshdasari-hub
+Dockerfile*              @keerthanarameshdasari-hub
+
+# Lockfile: a change here changes exactly what code ships
+package-lock.json        @keerthanarameshdasari-hub
+
+# Native app folders: android/ and ios/ do not exist in this repo yet.
+# Uncomment these when they are added.
+# /android/              @keerthanarameshdasari-hub
+# /ios/                  @keerthanarameshdasari-hub
