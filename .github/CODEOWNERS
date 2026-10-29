@@ -1,7 +1,10 @@
 # Code owners for backend_demo.
-# Changes to these paths need a review from one of the listed owners before they can merge
-# (once "Require review from Code Owners" is enabled in the branch ruleset).
-# Later rules take precedence over earlier ones.
+# GitHub automatically requests a review from the owners of every file a PR changes.
+# The main-strict ruleset makes that approval required for PRs into main; dev and test
+# only need green checks. Later rules take precedence over earlier ones.
+
+# Default: everything, so every PR asks the other maintainer for a review
+*                        @keerthanarameshdasari-hub @Keerthana-212
 
 # CI/CD, repo automation and security config
 /.github/                @keerthanarameshdasari-hub @Keerthana-212
