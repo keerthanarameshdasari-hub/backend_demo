@@ -1,0 +1,98 @@
+// Prisma schema for the wallet demo. The connection URL lives in
+// prisma.config.ts (read from DATABASE_URL), not here.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  APPROVED
+  REJECTED
+  TIMED_OUT
+}
+
+enum DocumentType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVING_LICENCE
+}
+
+enum TopUpStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  TIMED_OUT
+}
+
+model User {
+  id           String    @id @db.Uuid
+  email        String    @unique
+  fullName     String    @map("full_name")
+  passwordHash String    @map("password_hash")
+  kycStatus    KycStatus @default(NOT_STARTED) @map("kyc_status")
+  createdAt    DateTime  @map("created_at") @db.Timestamptz(3)
+
+  kycSubmissions KycSubmission[]
+  wallet         Wallet?
+  topUps         TopUp[]
+
+  @@map("users")
+}
+
+model KycSubmission {
+  id                  String       @id @db.Uuid
+  userId              String       @map("user_id") @db.Uuid
+  documentType        DocumentType @map("document_type")
+  documentNumberLast4 String       @map("document_number_last4") @db.VarChar(4)
+  documentKey         String       @map("document_key")
+  documentMimeType    String       @map("document_mime_type")
+  documentSizeBytes   Int          @map("document_size_bytes")
+  status              KycStatus
+  providerReference   String?      @map("provider_reference")
+  decisionReason      String?      @map("decision_reason")
+  createdAt           DateTime     @map("created_at") @db.Timestamptz(3)
+  decidedAt           DateTime?    @map("decided_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("kyc_submissions")
+}
+
+model Wallet {
+  userId       String   @id @map("user_id") @db.Uuid
+  currency     String   @db.Char(3)
+  balanceMinor BigInt   @default(0) @map("balance_minor")
+  updatedAt    DateTime @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model TopUp {
+  id                String      @id @db.Uuid
+  userId            String      @map("user_id") @db.Uuid
+  amountMinor       Int         @map("amount_minor")
+  currency          String      @db.Char(3)
+  status            TopUpStatus
+  idempotencyKey    String?     @map("idempotency_key")
+  providerReference String?     @map("provider_reference")
+  failureReason     String?     @map("failure_reason")
+  createdAt         DateTime    @map("created_at") @db.Timestamptz(3)
+  completedAt       DateTime?   @map("completed_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@map("top_ups")
+}
