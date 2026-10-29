@@ -19,7 +19,9 @@ Every arrow is a pull request, and every pull request into `dev`, `test` or `mai
 
 It never runs on `pull_request_target`, and it needs no secrets.
 
-A pull request can only merge when all of its required checks are green.
+A pull request can only merge when all of its required checks are green. PRs into `dev` and
+`test` need nothing more, so you can merge your own. PRs into `main` also need an approval from
+the other maintainer (see "Who reviews what").
 
 ## The jobs
 
@@ -104,14 +106,28 @@ ecosystem, so there's less noise. Those PRs go through the same checks as everyo
 
 ## Who reviews what
 
-`.github/CODEOWNERS` makes @keerthanarameshdasari-hub and @Keerthana-212 the code owners for
-CI config (`.github/`), infrastructure (`infra/`), Dockerfiles and `package-lock.json`. One
-of them must approve a PR touching those paths. Lines for `android/` and `ios/` are ready
-but commented out until those folders exist.
+`.github/CODEOWNERS` makes @keerthanarameshdasari-hub and @Keerthana-212 the code owners of
+every file, with explicit lines for CI config (`.github/`), infrastructure (`infra/`),
+Dockerfiles and `package-lock.json`. Lines for `android/` and `ios/` are ready but commented
+out until those folders exist.
+
+Because every file has owners, GitHub automatically asks the other maintainer to review each
+pull request; it shows up in their GitHub notifications (and email, if they have it on). What
+that review means depends on where the PR is going:
+
+- **Into `dev` or `test`** (`dev-test` ruleset): the review is optional. Once the checks are
+  green you can merge your own PR.
+- **Into `main`** (`main-strict` ruleset): one approval from a code owner other than the PR's
+  author is required. If new commits are pushed after the approval, it is dismissed and the
+  PR needs approving again. Nobody, admins included, can bypass this.
+
+To review, open the PR, go to **Files changed → Review changes**, pick **Approve** or
+**Request changes**, and submit.
 
 ## Required checks
 
-These are the check names to require in the branch rulesets for `dev`, `test` and `main`:
+These are the check names to require in both branch rulesets, `dev-test` (for `dev` and `test`)
+and `main-strict` (for `main`):
 
 | Check name | Job |
 |---|---|
