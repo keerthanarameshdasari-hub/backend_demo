@@ -13,8 +13,8 @@ Report it privately instead:
 
 This uses GitHub's private vulnerability reporting, so only the maintainers can see your report.
 
-If that button is not available, contact the maintainer, @keerthanarameshdasari-hub,
-through GitHub and ask for a private channel. Do not include vulnerability details in
+If that button is not available, contact a maintainer, @keerthanarameshdasari-hub or
+@Keerthana-212, through GitHub and ask for a private channel. Do not include vulnerability details in
 the first message.
 
 ## What to expect

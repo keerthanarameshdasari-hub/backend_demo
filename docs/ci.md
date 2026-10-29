@@ -10,8 +10,14 @@ feature/* ──PR──▶ dev ──PR──▶ test ──PR──▶ main
 ```
 
 Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs the
-**Security** workflow (`.github/workflows/security.yml`). The same workflow also runs every
-Monday morning, so new problems in code that hasn't changed still get noticed.
+**Security** workflow (`.github/workflows/security.yml`). It also runs:
+
+- on every push to `dev` (i.e. after a PR merges), so `dev` itself is scanned and the Security
+  tab reflects what is actually on the branch;
+- every Monday morning, so new problems in code that hasn't changed still get noticed (a
+  vulnerability can be discovered in a package years after we added it).
+
+It never runs on `pull_request_target`, and it needs no secrets.
 
 A pull request can only merge when all of its required checks are green.
 
@@ -39,18 +45,25 @@ licensed under **GPL or AGPL**.
 an attacker, and GPL/AGPL licences can oblige us to publish our own source code.
 
 *If it fails:* upgrade to a fixed version, or pick a different package. It only runs on pull
-requests, so it shows as "skipped" on the weekly run, which is expected.
+requests, so it shows as "skipped" on pushes to `dev` and the weekly run, which is expected.
 
-### CodeQL (javascript-typescript)
+### CodeQL (actions) and CodeQL (javascript-typescript)
 
-GitHub's code analyser. It reads our JavaScript/TypeScript and looks for security bugs such as
-injection, cross-site scripting and unsafe use of user input.
+GitHub's code analyser. It runs once per language, which is why it shows up as two checks:
+
+- **actions** reads our workflow files and looks for things like untrusted input reaching a
+  shell script, or a job with more permissions than it uses.
+- **javascript-typescript** reads `src/` and looks for security bugs such as injection,
+  cross-site scripting and unsafe use of user input.
 
 *Why:* these are the bugs reviewers miss most often, because the dangerous path can run across
 several files.
 
 *If it fails:* open the **Security → Code scanning** tab for the explanation and a suggested fix.
-When native code is added (`android/`, `ios/`), extra languages get added to this job.
+
+**A later step must add more languages.** This repo has no native code yet. When `android/`
+is added, add `java-kotlin` to the language list in `security.yml`; when `ios/` is added, add
+`swift` (that one needs a macOS runner). Until then those folders are not analysed.
 
 ### Workflow audit (zizmor)
 
@@ -91,5 +104,23 @@ ecosystem, so there's less noise. Those PRs go through the same checks as everyo
 
 ## Who reviews what
 
-`.github/CODEOWNERS` makes @keerthanarameshdasari-hub the required reviewer for CI config,
-infrastructure, Dockerfiles and `package-lock.json`.
+`.github/CODEOWNERS` makes @keerthanarameshdasari-hub and @Keerthana-212 the code owners for
+CI config (`.github/`), infrastructure (`infra/`), Dockerfiles and `package-lock.json`. One
+of them must approve a PR touching those paths. Lines for `android/` and `ios/` are ready
+but commented out until those folders exist.
+
+## Required checks
+
+These are the check names to require in the branch rulesets for `dev`, `test` and `main`:
+
+| Check name | Job |
+|---|---|
+| `Secret scan (gitleaks)` | gitleaks |
+| `Dependency review` | dependency-review |
+| `CodeQL (actions)` | codeql |
+| `CodeQL (javascript-typescript)` | codeql |
+| `Workflow audit (zizmor)` | zizmor |
+| `Workflow lint (actionlint)` | actionlint |
+
+If you rename a job or add a CodeQL language, update the rulesets too. A required check whose
+name no longer exists never reports, and PRs wait on it forever.
