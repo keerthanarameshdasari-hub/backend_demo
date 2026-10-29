@@ -3,6 +3,8 @@ name: Security
 on:
   pull_request:
     branches: [dev, test, main]
+  push:
+    branches: [dev]
   schedule:
     # Mondays 03:27 UTC (08:57 IST). Off the hour to avoid the top-of-hour queue.
     - cron: "27 3 * * 1"
@@ -75,8 +77,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # actions: the workflow files themselves. javascript-typescript: src/.
         # Add java-kotlin (android/) or swift (ios/, needs a macOS runner) when native code exists.
-        language: [javascript-typescript]
+        language: [actions, javascript-typescript]
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
