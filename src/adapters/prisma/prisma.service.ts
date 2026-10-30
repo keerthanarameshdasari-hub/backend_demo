@@ -3,8 +3,9 @@ import { PrismaClient } from '../../generated/prisma/client';
 import type { ReadinessProbe } from '../../domain';
 
 /**
- * One Prisma client per process. Logging is limited to warnings and errors
- * and never includes query parameters, so user data and secrets stay out of logs.
+ * One Prisma client per process. Only warnings are logged. Errors are not:
+ * their messages can quote query values, and they surface as exceptions anyway
+ * (the HTTP error filter logs them without the message).
  */
 export class PrismaDatabase implements ReadinessProbe {
   readonly name = 'database';
@@ -13,10 +14,7 @@ export class PrismaDatabase implements ReadinessProbe {
   constructor(databaseUrl: string) {
     this.client = new PrismaClient({
       adapter: new PrismaPg({ connectionString: databaseUrl }),
-      log: [
-        { level: 'warn', emit: 'stdout' },
-        { level: 'error', emit: 'stdout' },
-      ],
+      log: [{ level: 'warn', emit: 'stdout' }],
       errorFormat: 'minimal',
     });
   }

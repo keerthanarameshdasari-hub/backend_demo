@@ -1,0 +1,862 @@
+{
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "properties": {
+          "code": {
+            "example": "VALIDATION",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "enum": [
+              "ok"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "KycSubmissionForm": {
+        "properties": {
+          "document": {
+            "description": "JPEG, PNG or PDF",
+            "format": "binary",
+            "type": "string"
+          },
+          "documentNumber": {
+            "description": "With the mock provider, a number starting REJECT is rejected and TIMEOUT never answers.",
+            "example": "P1234567",
+            "type": "string"
+          },
+          "documentType": {
+            "enum": [
+              "PASSPORT",
+              "NATIONAL_ID",
+              "DRIVING_LICENCE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentType",
+          "documentNumber",
+          "document"
+        ],
+        "type": "object"
+      },
+      "KycSubmissionResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "decisionReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "documentNumberLast4": {
+            "example": "4567",
+            "type": "string"
+          },
+          "documentType": {
+            "enum": [
+              "PASSPORT",
+              "NATIONAL_ID",
+              "DRIVING_LICENCE"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "NOT_STARTED",
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "TIMED_OUT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentType",
+          "documentNumberLast4",
+          "status",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "example": "asha@example.com",
+            "type": "string"
+          },
+          "password": {
+            "example": "correct-horse-battery",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "MinAppVersionResponse": {
+        "properties": {
+          "minAppVersion": {
+            "description": "Oldest mobile app version the API still supports (semver)",
+            "example": "1.0.0",
+            "type": "string"
+          }
+        },
+        "required": [
+          "minAppVersion"
+        ],
+        "type": "object"
+      },
+      "ReadinessCheckResult": {
+        "properties": {
+          "name": {
+            "example": "database",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "up",
+              "down"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ReadinessCheckResult"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_ready"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "example": "asha@example.com",
+            "type": "string"
+          },
+          "fullName": {
+            "example": "Asha Rao",
+            "type": "string"
+          },
+          "password": {
+            "example": "correct-horse-battery",
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "fullName"
+        ],
+        "type": "object"
+      },
+      "TokenResponse": {
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "description": "Lifetime in seconds",
+            "type": "number"
+          },
+          "tokenType": {
+            "enum": [
+              "Bearer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accessToken",
+          "tokenType",
+          "expiresIn"
+        ],
+        "type": "object"
+      },
+      "TopUpRequest": {
+        "properties": {
+          "amountMinor": {
+            "description": "Amount in minor units (paise for INR)",
+            "example": 50000,
+            "type": "number"
+          },
+          "paymentToken": {
+            "description": "Token from the payment SDK. With the mock provider, tok_reject… is declined and tok_timeout… never answers.",
+            "example": "tok_visa",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amountMinor",
+          "paymentToken"
+        ],
+        "type": "object"
+      },
+      "TopUpResponse": {
+        "properties": {
+          "amountMinor": {
+            "type": "number"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "failureReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "TIMED_OUT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "amountMinor",
+          "currency",
+          "status",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "TopUpResultResponse": {
+        "properties": {
+          "topUp": {
+            "$ref": "#/components/schemas/TopUpResponse"
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/WalletResponse"
+          }
+        },
+        "required": [
+          "topUp",
+          "wallet"
+        ],
+        "type": "object"
+      },
+      "UserResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kycStatus": {
+            "enum": [
+              "NOT_STARTED",
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "TIMED_OUT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "fullName",
+          "kycStatus",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "WalletResponse": {
+        "properties": {
+          "balanceMinor": {
+            "description": "Balance in minor units (paise for INR)",
+            "example": 50000,
+            "type": "number"
+          },
+          "currency": {
+            "example": "INR",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "balanceMinor",
+          "updatedAt"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "contact": {},
+    "description": "Demo wallet: users, KYC with document upload, wallet top-ups via payment.",
+    "title": "backend_demo wallet API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "Auth_login",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Exchange email and password for an access token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "Auth_register",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Email already registered"
+          }
+        },
+        "summary": "Create an account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "Health_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Liveness: the process is up. Touches no dependencies.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/kyc": {
+      "get": {
+        "operationId": "Kyc_latest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycSubmissionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The latest KYC submission",
+        "tags": [
+          "kyc"
+        ]
+      },
+      "post": {
+        "operationId": "Kyc_submit",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/KycSubmissionForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycSubmissionResponse"
+                }
+              }
+            },
+            "description": "Submission recorded. `status` is APPROVED, REJECTED or TIMED_OUT (resubmit allowed)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Already approved, or a submission is in progress"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Submit an identity document for verification",
+        "tags": [
+          "kyc"
+        ]
+      }
+    },
+    "/meta/min-app-version": {
+      "get": {
+        "operationId": "Meta_minAppVersion",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinAppVersionResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Minimum supported mobile app version; older apps should force an update.",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "Health_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Readiness: the database is reachable.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/users/me": {
+      "get": {
+        "operationId": "Users_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The signed-in user",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/wallet": {
+      "get": {
+        "operationId": "Wallet_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Wallet balance",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/wallet/top-ups": {
+      "get": {
+        "operationId": "Wallet_list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TopUpResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recent top-ups, newest first",
+        "tags": [
+          "wallet"
+        ]
+      },
+      "post": {
+        "operationId": "Wallet_topUp",
+        "parameters": [
+          {
+            "description": "Retrying with the same key returns the original result instead of charging again.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopUpResultResponse"
+                }
+              }
+            },
+            "description": "Replay of an earlier request with the same Idempotency-Key"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopUpResultResponse"
+                }
+              }
+            },
+            "description": "`topUp.status` is SUCCEEDED, FAILED or TIMED_OUT. Only SUCCEEDED credits the wallet."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "KYC not approved"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Idempotency-Key reused with a different amount"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Top up the wallet with a payment. Requires approved KYC.",
+        "tags": [
+          "wallet"
+        ]
+      }
+    }
+  },
+  "servers": [],
+  "tags": []
+}

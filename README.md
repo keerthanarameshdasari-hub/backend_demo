@@ -180,21 +180,40 @@ npm run prisma:migrate:dev -- --name <change>   # create a migration from schema
 npm run prisma:migrate:deploy                   # apply pending migrations
 ```
 
-Every migration folder has a `down.sql` that reverses it (Prisma doesn't generate these). To roll
-back the latest one: `npx prisma db execute --file prisma/migrations/<name>/down.sql` then
-`npx prisma migrate resolve --rolled-back <name>`.
+Every migration folder has a `down.sql` that reverses it. Prisma doesn't write these, so create
+one with `npx prisma migrate diff --from-schema <new> --to-schema <old> --script` and end it by
+deleting the migration's row from `_prisma_migrations`, as the first one does. To roll back:
 
-**`binaryTargets`:** this project uses Prisma 7's Rust-free `prisma-client` generator. It has no
-native query engine, so the client runs on any Linux base image and there are no
-`binaryTargets` to keep in sync with the Dockerfile. The Prisma CLI's schema engine (used only by
-the `migrate` job) is downloaded for the platform `npm ci` runs on, which is the Docker image itself.
+```sh
+npx prisma db execute --file prisma/migrations/<name>/down.sql
+```
+
+After that, `prisma migrate deploy` applies the migration again.
+
+**`binaryTargets`:** set to `["native", "debian-openssl-3.0.x"]`, matching the Docker base image
+(Debian 13 "trixie", OpenSSL 3). Change it together with the Dockerfile's `NODE_IMAGE`. With
+Prisma 7's Rust-free `prisma-client` generator there is no native query engine, so today the
+setting downloads nothing; the API client runs on any Linux image. The Prisma CLI's schema engine
+(used only by the `migrate` job) is fetched for whatever platform runs `npm ci`, which in Docker is
+the image itself.
 
 ## Tests
 
+Use Node 26. NestJS 12 ships as ES modules only; `npm test` starts Jest with
+`--experimental-vm-modules` so it can load them (the app itself needs no flag).
+
 ```sh
-npm test            # everything
-npm run test:unit   # domain, config validation, mocks, architecture rules
-npm run test:e2e    # HTTP end to end with in-memory persistence: no Docker needed
+npm test                 # everything (integration tests skip unless TEST_DATABASE_URL is set)
+npm run test:unit        # domain, config validation, mocks, architecture rules
+npm run test:e2e         # HTTP end to end with in-memory persistence: no Docker needed
+npm run test:integration # Prisma adapters against a real, migrated Postgres
+```
+
+The integration suite empties the tables it uses, so point it at a throwaway database:
+
+```sh
+docker compose up -d postgres migrate
+TEST_DATABASE_URL=postgresql://wallet:wallet@localhost:5432/wallet npm run test:integration
 ```
 
 ## Docker

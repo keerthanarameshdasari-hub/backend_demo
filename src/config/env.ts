@@ -82,7 +82,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
   const problems = result.error.issues.map((issue) => {
     const key = issue.path.join('.') || '(root)';
-    const missing = issue.code === 'invalid_type' && cleaned[key] === undefined;
+    // Cross-field ("custom") rules keep their own wording even when a key is absent.
+    const missing = issue.code !== 'custom' && cleaned[key] === undefined;
     return missing ? `${key}: is required` : `${key}: ${issue.message}`;
   });
   throw new InvalidEnvironmentError([...new Set(problems)].sort());

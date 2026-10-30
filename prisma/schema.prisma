@@ -5,6 +5,13 @@ generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
   moduleFormat = "cjs"
+  // Matches the Docker base image (node:26-trixie-slim = Debian 13, OpenSSL 3).
+  // "native" covers whatever machine runs `prisma generate` locally.
+  // Note: this Rust-free client has no native query engine, so today this
+  // downloads nothing; it keeps the image's platform on record and stays
+  // correct if the project ever moves back to an engine-based client.
+  // Change it together with the Dockerfile's base image.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

@@ -2,7 +2,7 @@
 
 # Node 26 (Active LTS) on Debian 13 "trixie" slim, pinned by digest so every
 # build uses exactly the same base. Dependabot (docker ecosystem) bumps it.
-ARG NODE_IMAGE=node:26.13.0-trixie-slim@sha256:__NODE_DIGEST__
+ARG NODE_IMAGE=node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39
 
 # ---------------------------------------------------------------- build
 FROM ${NODE_IMAGE} AS build

@@ -11,6 +11,22 @@ const STATUS: Record<DomainErrorCode, number> = {
 };
 
 /**
+ * Error type, optional driver code (e.g. Prisma's P2002) and stack frames,
+ * but not the message: messages from database or SDK errors can quote the
+ * values that were sent, such as an email or a token.
+ */
+export function describeForLog(error: unknown): string {
+  if (!(error instanceof Error)) return 'Non-error value thrown';
+  const code = (error as { code?: unknown }).code;
+  const head = typeof code === 'string' ? `${error.name} [${code}]` : error.name;
+  const frames = (error.stack ?? '')
+    .split('\n')
+    .filter((line) => line.trimStart().startsWith('at '))
+    .join('\n');
+  return frames ? `${head}\n${frames}` : head;
+}
+
+/**
  * Turns every error into `{ statusCode, code, message }`. Unexpected errors
  * become a generic 500: their details are logged (name and stack only, never
  * the request) and never sent to the client.
@@ -36,7 +52,7 @@ export class ErrorFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error(error instanceof Error ? (error.stack ?? error.name) : 'Non-error thrown');
+    this.logger.error(describeForLog(error));
     res
       .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json({ statusCode: 500, code: 'INTERNAL', message: 'Something went wrong' });
