@@ -29,7 +29,14 @@ describe('mock provider scenarios', () => {
   it('a hanging KYC mock rejects at once if already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
-    const request = { reference: 'r', userId: 'u', fullName: 'A', documentType: 'PASSPORT' as const, documentNumber: 'TIMEOUT-1', documentKey: 'k' };
+    const request = {
+      reference: 'r',
+      userId: 'u',
+      fullName: 'A',
+      documentType: 'PASSPORT' as const,
+      documentNumber: 'TIMEOUT-1',
+      documentKey: 'k',
+    };
     await expect(new MockKycProvider().verify(request, controller.signal)).rejects.toThrow('aborted');
   });
 });

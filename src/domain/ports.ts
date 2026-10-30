@@ -70,9 +70,7 @@ export interface PaymentRequest {
 }
 
 export type PaymentResult =
-  | { outcome: 'approved'; providerReference: string }
-  | { outcome: 'rejected'; reason: string }
-  | { outcome: 'timeout' };
+  { outcome: 'approved'; providerReference: string } | { outcome: 'rejected'; reason: string } | { outcome: 'timeout' };
 
 export interface PaymentGateway {
   /** Must stop work and reject when `signal` aborts. */

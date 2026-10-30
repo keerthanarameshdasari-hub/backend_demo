@@ -27,7 +27,9 @@ async function setup(kycStatus: KycStatus = 'APPROVED') {
   return { service, users, wallets, payments, clock, balance };
 }
 
-const topUp = (overrides: Partial<{ userId: string; amountMinor: number; paymentToken: string; idempotencyKey: string }> = {}) => ({
+const topUp = (
+  overrides: Partial<{ userId: string; amountMinor: number; paymentToken: string; idempotencyKey: string }> = {},
+) => ({
   userId: 'u1',
   amountMinor: 5_000,
   paymentToken: 'tok_card',

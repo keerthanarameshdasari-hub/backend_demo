@@ -288,10 +288,18 @@ describe('KycService.submit — input validation', () => {
   it('rejects a type the policy allows but whose content it cannot verify', async () => {
     const users = new InMemoryUsers();
     await users.create(aUser({ id: 'u1' }));
-    const service = new KycService(users, new InMemoryKyc(), new InMemoryStorage(), new FakeKycProvider(), new SequentialIds(), new FixedClock(), {
-      ...POLICY,
-      allowedMimeTypes: [...POLICY.allowedMimeTypes, 'image/gif'],
-    });
+    const service = new KycService(
+      users,
+      new InMemoryKyc(),
+      new InMemoryStorage(),
+      new FakeKycProvider(),
+      new SequentialIds(),
+      new FixedClock(),
+      {
+        ...POLICY,
+        allowedMimeTypes: [...POLICY.allowedMimeTypes, 'image/gif'],
+      },
+    );
     const gif = { bytes: new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]), mimeType: 'image/gif' };
     await expect(service.submit(passport('P1234567', gif))).toBeRefusedWith(
       ValidationError,

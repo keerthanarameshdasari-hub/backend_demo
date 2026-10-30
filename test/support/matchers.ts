@@ -12,7 +12,6 @@ import { DomainError } from '../../src/domain';
 type ErrorClass = abstract new (...args: never[]) => Error;
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace jest {
     interface Matchers<R> {
       /** The promise rejects with an instance of `errorClass`. `rule` is a plain-words name for the domain rule. */
@@ -41,7 +40,8 @@ expect.extend({
             : printReceived(error);
       return {
         pass: false,
-        message: () => `${header}RULE BROKEN: expected the call to be refused with ${errorClass.name}, but it failed with ${what}`,
+        message: () =>
+          `${header}RULE BROKEN: expected the call to be refused with ${errorClass.name}, but it failed with ${what}`,
       };
     }
     return {

@@ -2,12 +2,7 @@
  * Business errors raised by the domain. The HTTP layer maps each `code` to a
  * status; the domain itself knows nothing about HTTP.
  */
-export type DomainErrorCode =
-  | 'VALIDATION'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN';
+export type DomainErrorCode = 'VALIDATION' | 'NOT_FOUND' | 'CONFLICT' | 'UNAUTHENTICATED' | 'FORBIDDEN';
 
 export class DomainError extends Error {
   constructor(
