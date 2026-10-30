@@ -9,8 +9,16 @@ run any of it yourself; it all happens on GitHub when you open a pull request.
 feature/* ──PR──▶ dev ──PR──▶ test ──PR──▶ main
 ```
 
-Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs the
-**Security** workflow (`.github/workflows/security.yml`). It also runs:
+Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs two
+workflows:
+
+- **CI** (`.github/workflows/ci.yml`): does the code build, pass its tests, keep its API
+  contract, and produce a clean Docker image? It runs on pull requests only, and again whenever
+  a label is added or removed. A new push to the same PR cancels the run it replaces.
+- **Security** (`.github/workflows/security.yml`): secrets, dependencies, code scanning and
+  workflow audits.
+
+The Security workflow also runs:
 
 - on every push to `dev` (i.e. after a PR merges), so `dev` itself is scanned and the Security
   tab reflects what is actually on the branch;
@@ -23,7 +31,94 @@ A pull request can only merge when all of its required checks are green. PRs int
 `test` need nothing more, so you can merge your own. PRs into `main` also need an approval from
 the other maintainer (see "Who reviews what").
 
-## The jobs
+## CI jobs
+
+The first five jobs run in parallel. Each one installs dependencies with `npm ci` (npm's
+download cache is shared between runs) and has only read access to the code.
+
+### Lint and types
+
+ESLint (`npm run lint`), the TypeScript compiler with no output (`npm run typecheck`), and
+Prettier (`npm run format:check`).
+
+*Why:* catches bugs that don't need running (unused values, type errors) and keeps formatting
+out of code review.
+
+*If it fails:* run the same script locally. `npm run format` fixes formatting; ESLint and tsc
+point at the line.
+
+### Unit tests
+
+`npm run test:unit`: the domain against in-memory fakes, plus config, adapter and architecture
+tests. Fails if coverage of `src/domain` drops below 80% on statements, branches, functions or
+lines.
+
+*Why:* the business rules (KYC gate, never crediting a payment that timed out, idempotency) are
+the part that must not break. Failures name the rule, e.g. "RULE BROKEN: only KYC-APPROVED
+users can top up".
+
+*If it fails:* the log names the rule and shows what happened instead. A coverage failure lists
+the metric that fell short; add tests for the new domain code.
+
+### Integration and API tests
+
+Starts a Postgres service container (same image as `docker-compose.yml`), then:
+
+1. `prisma migrate deploy` applies the migrations;
+2. `prisma migrate reset --force` drops everything and applies every migration again from an
+   empty database, proving the migrations work from zero and not only on top of an existing
+   schema;
+3. `npm run test:int` runs the Prisma adapters and services against that database;
+4. `npm run test:api` calls every endpoint through the real app, including 401, 403 and
+   validation errors.
+
+*Why:* fakes can't catch a missing index, a migration that doesn't match `schema.prisma`, or a
+wallet credited twice under concurrency.
+
+*If it fails:* a migration failure usually means a migration was edited after it was applied,
+or depends on data that isn't there on an empty database. Never edit an applied migration; add a
+new one.
+
+### API contract
+
+1. Regenerates `openapi.json` from the code (`npm run openapi`) and fails if it differs from
+   the committed file.
+2. Compares `openapi.json` with the one on the target branch using
+   [oasdiff](https://github.com/oasdiff/oasdiff), and fails on any **breaking** change: a
+   removed endpoint or field, a new required input, a narrowed type, and so on.
+
+*Why:* the mobile apps already in people's hands can't be updated instantly. A breaking API
+change can crash them.
+
+*If it fails:*
+- "does not match the code": run `npm run openapi` and commit `openapi.json`.
+- "breaking API changes": the job summary and the PR annotations list each change. Prefer an
+  additive change (a new field or endpoint alongside the old one). If the break is deliberate
+  and agreed, add the **`api-breaking-approved`** label to the PR; the check re-runs and passes
+  with a warning. The label is read through an environment variable, never pasted into a
+  script, because label names are user input.
+
+### Docker image
+
+Scans the `Dockerfile` with `trivy config` (fails on HIGH or CRITICAL misconfigurations), builds
+the runtime image without pushing it, and scans it with `trivy image` (fails on HIGH or CRITICAL
+vulnerabilities **that have a fix available**).
+
+*Why:* the image is what actually runs. Unfixed vulnerabilities are not counted, since there's
+nothing to upgrade to yet.
+
+*If it fails:* the table names the package and the fixed version. Usually the fix is a newer
+base image digest (Dependabot proposes these weekly) or a dependency upgrade.
+
+### ci-passed
+
+Waits for all the jobs above and fails unless **every one of them succeeded**.
+
+*Why:* GitHub treats a required check that was *skipped* as passing. Requiring one job that
+always runs (`if: always()`) and checks the others' results closes that gap, and means the
+rulesets need only one CI check name, however many jobs CI has.
+
+## Security jobs
 
 ### Secret scan (gitleaks)
 
@@ -126,17 +221,21 @@ To review, open the PR, go to **Files changed → Review changes**, pick **Appro
 
 ## Required checks
 
-These are the check names to require in both branch rulesets, `dev-test` (for `dev` and `test`)
-and `main-strict` (for `main`):
+These are the check names to require in all three branch rulesets, `dev-test` (for `dev` and
+`test`) and `main-strict` (for `main`):
 
-| Check name | Job |
-|---|---|
-| `Secret scan (gitleaks)` | gitleaks |
-| `Dependency review` | dependency-review |
-| `CodeQL (actions)` | codeql |
-| `CodeQL (javascript-typescript)` | codeql |
-| `Workflow audit (zizmor)` | zizmor |
-| `Workflow lint (actionlint)` | actionlint |
+| Check name | Workflow | Job |
+|---|---|---|
+| `ci-passed` | CI | ci-passed (covers every other CI job) |
+| `Secret scan (gitleaks)` | Security | gitleaks |
+| `Dependency review` | Security | dependency-review |
+| `CodeQL (actions)` | Security | codeql |
+| `CodeQL (javascript-typescript)` | Security | codeql |
+| `Workflow audit (zizmor)` | Security | zizmor |
+| `Workflow lint (actionlint)` | Security | actionlint |
+
+Don't add the individual CI jobs: `ci-passed` already requires them, and new CI jobs are covered
+as soon as they're added to its `needs:` list.
 
 If you rename a job or add a CodeQL language, update the rulesets too. A required check whose
 name no longer exists never reports, and PRs wait on it forever.

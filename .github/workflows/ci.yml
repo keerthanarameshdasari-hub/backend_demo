@@ -1,0 +1,278 @@
+name: CI
+
+# Build and test checks for every pull request into the promotion branches.
+# Security scanning lives in security.yml. See docs/ci.md for what each job
+# checks, why, and what to do when it fails.
+
+on:
+  pull_request:
+    branches: [dev, test, main]
+    # labeled/unlabeled: adding or removing `api-breaking-approved` re-runs the contract check.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# Deny everything by default; each job asks only for what it needs.
+permissions: {}
+
+# A new push (or label change) on the same PR cancels the run it supersedes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "26"
+
+jobs:
+  lint-and-types:
+    name: Lint and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the repository code
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Type check (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Prettier
+        run: npm run format:check
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the repository code
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Unit tests (fails below 80% coverage of src/domain)
+        run: npm run test:unit
+
+  integration:
+    name: Integration and API tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read # read the repository code
+    services:
+      postgres:
+        # Same image and digest as docker-compose.yml.
+        image: postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+        env:
+          POSTGRES_USER: wallet
+          POSTGRES_PASSWORD: wallet # throwaway CI database, not a secret
+          POSTGRES_DB: wallet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U wallet -d wallet"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://wallet:wallet@localhost:5432/wallet
+      # The integration suite uses this database instead of starting Testcontainers.
+      TEST_DATABASE_URL: postgresql://wallet:wallet@localhost:5432/wallet
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Apply migrations (prisma migrate deploy)
+        run: npx prisma migrate deploy
+
+      - name: Prove migrations apply cleanly from zero (prisma migrate reset)
+        # Drops everything, then re-applies every migration in order.
+        run: npx prisma migrate reset --force
+
+      - name: Integration tests
+        run: npm run test:int
+
+      - name: API tests
+        run: npm run test:api
+
+  contract:
+    name: API contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the repository code
+    env:
+      OASDIFF_VERSION: "1.35.0"
+      OASDIFF_SHA256: "a8023002fcb2eaa7f5758148a9303cb63d33b939886df312268bc0fc7b939140"
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out openapi.json from the target branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          persist-credentials: false
+          sparse-checkout: openapi.json
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Regenerate openapi.json
+        run: npm run openapi
+
+      - name: Fail if openapi.json is out of date
+        run: |
+          if ! git diff --exit-code -- openapi.json; then
+            echo "::error file=openapi.json::openapi.json does not match the code. Run 'npm run openapi' and commit the result."
+            exit 1
+          fi
+
+      - name: Install oasdiff (checksum verified)
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o oasdiff.tar.gz \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          echo "${OASDIFF_SHA256}  oasdiff.tar.gz" | sha256sum --check --strict -
+          tar -xzf oasdiff.tar.gz oasdiff
+
+      - name: Check for breaking API changes
+        env:
+          # PR labels come in through env, never inlined into the script.
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          APPROVAL_LABEL: api-breaking-approved
+        run: |
+          # No -e: oasdiff's exit status is inspected below, not fatal on its own.
+          set +e -uo pipefail
+          if [ ! -f base/openapi.json ]; then
+            echo "::notice::The target branch has no openapi.json yet; nothing to compare against."
+            exit 0
+          fi
+
+          oasdiff="$RUNNER_TEMP/oasdiff"
+          "$oasdiff" breaking base/openapi.json openapi.json --fail-on ERR | tee breaking.txt
+          status=${PIPESTATUS[0]}
+          {
+            echo "### Breaking API changes"
+            echo '```'
+            cat breaking.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          if jq -e --arg label "$APPROVAL_LABEL" 'index($label) != null' <<<"$PR_LABELS" > /dev/null; then
+            echo "::warning::Breaking API changes allowed by the '$APPROVAL_LABEL' label."
+            exit 0
+          fi
+          # Re-run for inline annotations on the PR, then fail.
+          "$oasdiff" breaking base/openapi.json openapi.json --fail-on ERR --format githubactions || true
+          echo "::error::This PR makes breaking API changes. Make them additive, or get them approved and add the '$APPROVAL_LABEL' label."
+          exit 1
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read # read the repository code
+    env:
+      TRIVY_VERSION: "0.76.1"
+      TRIVY_SHA256: "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+      IMAGE: backend-demo:ci
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Trivy (checksum verified)
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  trivy.tar.gz" | sha256sum --check --strict -
+          tar -xzf trivy.tar.gz trivy
+
+      - name: Scan the Dockerfile (HIGH/CRITICAL misconfigurations)
+        run: |
+          "$RUNNER_TEMP/trivy" config --severity HIGH,CRITICAL --exit-code 1 Dockerfile
+
+      - name: Build the runtime image (not pushed)
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: docker build --target runtime --tag "$IMAGE" .
+
+      - name: Scan the image (HIGH/CRITICAL vulnerabilities that have a fix)
+        run: |
+          "$RUNNER_TEMP/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE"
+
+  # The one check to require in the branch rulesets. GitHub treats a skipped
+  # required check as passing, so this job always runs and fails unless every
+  # job above actually succeeded (not skipped, cancelled or failed).
+  ci-passed:
+    name: ci-passed
+    if: always()
+    needs: [lint-and-types, unit, integration, contract, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success") | .key' <<<"$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "::error::These jobs did not succeed: $(echo "$failed" | paste -sd, -)"
+            exit 1
+          fi

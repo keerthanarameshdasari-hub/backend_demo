@@ -211,6 +211,10 @@ its own Jest config:
 | `npm run test:int` | `test/integration` | Docker, or `TEST_DATABASE_URL` | The Prisma adapters and domain services against a real Postgres, after `prisma migrate deploy` has applied the real migrations. Also checks the migrations themselves: no drift from `schema.prisma`, expected constraints, and `down.sql` round-trips. |
 | `npm test` | all three | as above | Runs unit, then API, then integration. |
 
+Code style is checked too: `npm run lint` (ESLint), `npm run typecheck` (tsc) and
+`npm run format:check` (Prettier; `npm run format` fixes it). Every pull request runs all of this,
+plus the Docker image and API contract checks: see [docs/ci.md](docs/ci.md).
+
 ### Domain unit tests
 
 `test/fakes.ts` has an in-memory fake for every port. `FakeKycProvider` and `FakePaymentGateway`
