@@ -37,6 +37,7 @@ export default async function globalSetup(): Promise<void> {
       throw new Error(
         'Could not start Postgres with Testcontainers. Start Docker, or set TEST_DATABASE_URL to a ' +
           `throwaway database.\nCause: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
     url = globalThis.__INT_POSTGRES__.getConnectionUri();
@@ -49,6 +50,8 @@ export default async function globalSetup(): Promise<void> {
     prisma(['migrate', 'deploy'], url);
   } catch (error) {
     const output = (error as { stdout?: string; stderr?: string }).stdout ?? '';
-    throw new Error(`prisma migrate deploy failed:\n${output}\n${(error as { stderr?: string }).stderr ?? ''}`);
+    throw new Error(`prisma migrate deploy failed:\n${output}\n${(error as { stderr?: string }).stderr ?? ''}`, {
+      cause: error,
+    });
   }
 }

@@ -53,8 +53,6 @@ export class ErrorFilter implements ExceptionFilter {
     }
 
     this.logger.error(describeForLog(error));
-    res
-      .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .json({ statusCode: 500, code: 'INTERNAL', message: 'Something went wrong' });
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ statusCode: 500, code: 'INTERNAL', message: 'Something went wrong' });
   }
 }

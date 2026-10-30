@@ -136,17 +136,33 @@ describe('wallet API (e2e)', () => {
       expect(ok.body.topUp.status).toBe('SUCCEEDED');
       expect(ok.body.wallet).toMatchObject({ currency: 'INR', balanceMinor: 5000 });
 
-      const declined = await http.post('/wallet/top-ups').set(auth()).send({ amountMinor: 5000, paymentToken: 'tok_reject' }).expect(201);
+      const declined = await http
+        .post('/wallet/top-ups')
+        .set(auth())
+        .send({ amountMinor: 5000, paymentToken: 'tok_reject' })
+        .expect(201);
       expect(declined.body.topUp).toMatchObject({ status: 'FAILED', failureReason: 'card_declined' });
       expect(declined.body.wallet.balanceMinor).toBe(5000);
 
-      const slow = await http.post('/wallet/top-ups').set(auth()).send({ amountMinor: 5000, paymentToken: 'tok_timeout' }).expect(201);
+      const slow = await http
+        .post('/wallet/top-ups')
+        .set(auth())
+        .send({ amountMinor: 5000, paymentToken: 'tok_timeout' })
+        .expect(201);
       expect(slow.body.topUp.status).toBe('TIMED_OUT');
       expect(slow.body.wallet.balanceMinor).toBe(5000);
 
       const once = { amountMinor: 2500, paymentToken: 'tok_visa' };
-      const first = await http.post('/wallet/top-ups').set({ ...auth(), 'Idempotency-Key': 'order-0001' }).send(once).expect(201);
-      const again = await http.post('/wallet/top-ups').set({ ...auth(), 'Idempotency-Key': 'order-0001' }).send(once).expect(200);
+      const first = await http
+        .post('/wallet/top-ups')
+        .set({ ...auth(), 'Idempotency-Key': 'order-0001' })
+        .send(once)
+        .expect(201);
+      const again = await http
+        .post('/wallet/top-ups')
+        .set({ ...auth(), 'Idempotency-Key': 'order-0001' })
+        .send(once)
+        .expect(200);
       expect(again.body.topUp.id).toBe(first.body.topUp.id);
       expect(again.body.wallet.balanceMinor).toBe(7500);
       await http

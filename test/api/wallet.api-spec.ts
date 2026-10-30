@@ -74,7 +74,11 @@ describe('POST /wallet/top-ups', () => {
 
     it.each(['short', 'has spaces in it', 'x'.repeat(65), 'semi;colon!'])('400 for a malformed key %p', async (key) => {
       const { auth } = await h.signUp('APPROVED');
-      const res = await h.http.post('/wallet/top-ups').set({ ...auth, 'Idempotency-Key': key }).send(card()).expect(400);
+      const res = await h.http
+        .post('/wallet/top-ups')
+        .set({ ...auth, 'Idempotency-Key': key })
+        .send(card())
+        .expect(400);
       expect(res.body.message).toMatch(/Idempotency-Key must be 8-64/);
     });
   });

@@ -13,7 +13,10 @@ export function expectRule(rule: string, assertions: () => void): void {
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     const wrapped = new Error(`RULE BROKEN: ${rule}\n\n${error.message}`);
-    wrapped.stack = `${wrapped.message}\n${(error.stack ?? '').split('\n').filter((l) => l.trimStart().startsWith('at ')).join('\n')}`;
+    wrapped.stack = `${wrapped.message}\n${(error.stack ?? '')
+      .split('\n')
+      .filter((l) => l.trimStart().startsWith('at '))
+      .join('\n')}`;
     throw wrapped;
   }
 }
