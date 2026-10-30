@@ -1,12 +1,21 @@
-/** In-memory implementations of the persistence and storage ports, for tests. */
+/**
+ * In-memory implementations of every domain port, for tests. Nothing here
+ * imports from src/adapters, so domain unit tests exercise the domain alone.
+ */
 import type {
   Clock,
   FileStorage,
   IdGenerator,
+  KycProvider,
+  KycResult,
   KycStatus,
   KycSubmission,
   KycSubmissionRepository,
+  KycVerificationRequest,
   PasswordHasher,
+  PaymentGateway,
+  PaymentRequest,
+  PaymentResult,
   ReadinessProbe,
   TopUp,
   User,
@@ -137,6 +146,82 @@ export class InMemoryStorage implements FileStorage {
   }
 }
 
+// ---------------------------------------------------------------- external providers
+
+/**
+ * What a scripted provider does on one call:
+ *   a result      -> answers with it straight away
+ *   'hang'        -> never answers; rejects once the caller aborts (a dead provider)
+ *   { after, result } -> answers after `after` ms of (possibly fake) time, ignoring abort
+ *   an Error      -> fails with it (a provider outage, not a timeout)
+ */
+export type Step<R> = R | 'hang' | Error | { after: number; result: R };
+
+/** Shared behaviour of the provider fakes: a queue of steps, a default, and a call log. */
+abstract class ScriptedProvider<Req, Res> {
+  readonly calls: { request: Req; signal: AbortSignal }[] = [];
+  private readonly script: Step<Res>[] = [];
+
+  protected constructor(private fallback: Step<Res>) {}
+
+  /** Queue what the next calls do, in order. Once the queue is empty, the default applies. */
+  willRespond(...steps: Step<Res>[]): this {
+    this.script.push(...steps);
+    return this;
+  }
+
+  /** What every call does once the queue is empty. */
+  byDefault(step: Step<Res>): this {
+    this.fallback = step;
+    return this;
+  }
+
+  get lastCall(): { request: Req; signal: AbortSignal } | undefined {
+    return this.calls[this.calls.length - 1];
+  }
+
+  protected play(request: Req, signal: AbortSignal): Promise<Res> {
+    this.calls.push({ request, signal });
+    const step = this.script.length > 0 ? this.script.shift()! : this.fallback;
+    if (step === 'hang') return hangUntilAborted(signal);
+    if (step instanceof Error) return Promise.reject(step);
+    if (typeof step === 'object' && step !== null && 'after' in step) {
+      return new Promise((resolve) => setTimeout(() => resolve(step.result), step.after));
+    }
+    return Promise.resolve(step);
+  }
+}
+
+function hangUntilAborted(signal: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const abort = () => reject(new Error('aborted'));
+    if (signal.aborted) return abort();
+    signal.addEventListener('abort', abort, { once: true });
+  });
+}
+
+/** Approves every document unless told otherwise. */
+export class FakeKycProvider extends ScriptedProvider<KycVerificationRequest, KycResult> implements KycProvider {
+  constructor() {
+    super({ outcome: 'approved', providerReference: 'kyc_ref_ok' });
+  }
+  verify(request: KycVerificationRequest, signal: AbortSignal): Promise<KycResult> {
+    return this.play(request, signal);
+  }
+}
+
+/** Approves every charge unless told otherwise. */
+export class FakePaymentGateway extends ScriptedProvider<PaymentRequest, PaymentResult> implements PaymentGateway {
+  constructor() {
+    super({ outcome: 'approved', providerReference: 'pay_ref_ok' });
+  }
+  charge(request: PaymentRequest, signal: AbortSignal): Promise<PaymentResult> {
+    return this.play(request, signal);
+  }
+}
+
+// ---------------------------------------------------------------- ops
+
 export class SwitchableProbe implements ReadinessProbe {
   readonly name = 'database';
   up = true;
@@ -148,3 +233,17 @@ export class SwitchableProbe implements ReadinessProbe {
 /** Smallest byte sequences that pass the magic-number checks. */
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 export const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
+export const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46]);
+
+/** A user row for seeding fakes; override any field. */
+export function aUser(overrides: Partial<User> = {}): User {
+  return {
+    id: 'u1',
+    email: 'asha@example.com',
+    fullName: 'Asha Rao',
+    passwordHash: 'hashed:irrelevant',
+    kycStatus: 'NOT_STARTED',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}

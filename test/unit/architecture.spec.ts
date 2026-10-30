@@ -23,6 +23,17 @@ describe('architecture', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('domain unit tests use port fakes only, never real adapters or the app', () => {
+    const tests = join(__dirname, 'domain');
+    const helpers = [join(__dirname, '..', 'fakes.ts'), ...files(join(__dirname, '..', 'support'))];
+    const offenders = [...files(tests), ...helpers].flatMap((file) =>
+      importsOf(file)
+        .filter((spec) => /\/src\/(adapters|app|http|config)\//.test(spec) || !spec.startsWith('.'))
+        .map((spec) => `${relative(tests, file)} imports ${spec}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it('only src/config reads process.env (plus the entry scripts)', () => {
     const allowed = new Set(['config/env.ts', 'main.ts']);
     const offenders = files(SRC)
