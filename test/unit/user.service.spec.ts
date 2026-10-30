@@ -1,5 +1,5 @@
 import { ScryptPasswordHasher } from '../../src/adapters/system/system';
-import { ConflictError, InvalidCredentialsError, UserService, ValidationError } from '../../src/domain';
+import { ConflictError, InvalidCredentialsError, isPlausibleEmail, UserService, ValidationError } from '../../src/domain';
 import { FixedClock, InMemoryUsers, PlainHasher, SequentialIds } from '../fakes';
 
 const make = () => new UserService(new InMemoryUsers(), new PlainHasher(), new SequentialIds(), new FixedClock());
@@ -33,6 +33,25 @@ describe('UserService', () => {
     await expect(service.authenticate('nobody@example.com', 'long-enough-pw')).rejects.toBeInstanceOf(InvalidCredentialsError);
     await expect(service.authenticate('a@example.com', 'wrong-password')).rejects.toBeInstanceOf(InvalidCredentialsError);
     await expect(service.authenticate('A@example.com', 'long-enough-pw')).resolves.toMatchObject({ email: 'a@example.com' });
+  });
+});
+
+describe('isPlausibleEmail', () => {
+  it.each(['a@b.co', 'first.last@sub.example.in', 'x+tag@example.com'])('accepts %s', (e) =>
+    expect(isPlausibleEmail(e)).toBe(true),
+  );
+
+  it.each(['', 'plain', '@example.com', 'a@', 'a@b', 'a@.com', 'a@b.', 'a@@b.com', 'a@b@c.com', 'a b@c.com'])(
+    'rejects %p',
+    (e) => expect(isPlausibleEmail(e)).toBe(false),
+  );
+
+  it('rejects over-long input and stays fast on hostile input', () => {
+    expect(isPlausibleEmail(`${'a'.repeat(250)}@b.co`)).toBe(false);
+    const hostile = `!@!.${'!.'.repeat(100_000)}`; // the pattern CodeQL flagged for the old regex
+    const started = Date.now();
+    expect(isPlausibleEmail(hostile)).toBe(false);
+    expect(Date.now() - started).toBeLessThan(50);
   });
 });
 

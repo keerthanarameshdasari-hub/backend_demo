@@ -8,8 +8,22 @@ export interface RegisterInput {
   fullName: string;
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const MAX_EMAIL_LENGTH = 254;
 export const MIN_PASSWORD_LENGTH = 10;
+
+/**
+ * Shape check only (the real proof is a confirmation email): exactly one "@",
+ * no whitespace, and a domain with a dot that isn't first or last. Written
+ * without a regex so it runs in linear time on any input.
+ */
+export function isPlausibleEmail(email: string): boolean {
+  if (email.length > MAX_EMAIL_LENGTH || /\s/.test(email)) return false;
+  const at = email.indexOf('@');
+  if (at <= 0 || at !== email.lastIndexOf('@')) return false;
+  const domain = email.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
 
 export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -26,7 +40,7 @@ export class UserService {
   async register(input: RegisterInput): Promise<PublicUser> {
     const email = normaliseEmail(input.email);
     const fullName = input.fullName.trim();
-    if (!EMAIL.test(email)) throw new ValidationError('email is not valid');
+    if (!isPlausibleEmail(email)) throw new ValidationError('email is not valid');
     if (input.password.length < MIN_PASSWORD_LENGTH) {
       throw new ValidationError(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
     }
