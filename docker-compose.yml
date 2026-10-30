@@ -1,0 +1,87 @@
+# Local development stack: Postgres, MinIO (S3-compatible), a bucket job,
+# a migration job and the API.   Usage: docker compose up --build
+#
+# Images are pinned by digest. MinIO stopped publishing minio/minio to Docker
+# Hub in September 2026, so this uses Chainguard's free MinIO build.
+
+name: backend-demo
+
+# .env.example gives working defaults; an optional .env overrides any of them.
+x-app-env: &app-env
+  env_file:
+    - path: .env.example
+    - path: .env
+      required: false
+
+services:
+  postgres:
+    image: postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    environment:
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet
+      POSTGRES_DB: wallet
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      # -h 127.0.0.1: check over TCP. On first start the image runs a temporary
+      # socket-only server while it initialises; a socket check would pass early.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U wallet -d wallet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "127.0.0.1:9000:9000" # S3 API
+      - "127.0.0.1:9001:9001" # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-off: create the KYC bucket if it's missing, then exit.
+  create-bucket:
+    <<: *app-env
+    build: { context: ., target: runtime }
+    image: backend-demo-api:local
+    command: ["node", "dist/scripts/ensure-bucket.js"]
+    depends_on:
+      minio: { condition: service_healthy }
+    restart: "no"
+
+  # One-off: apply Prisma migrations, then exit.
+  migrate:
+    <<: *app-env
+    build: { context: ., target: migrate }
+    image: backend-demo-migrate:local
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    <<: *app-env
+    build: { context: ., target: runtime }
+    image: backend-demo-api:local
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      create-bucket: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  minio-data:
