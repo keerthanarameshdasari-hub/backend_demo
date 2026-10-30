@@ -36,12 +36,24 @@ describe('401: protected endpoints need a valid bearer token', () => {
     ['a non-Bearer scheme', async () => ({ Authorization: `Basic ${Buffer.from('a:b').toString('base64')}` })],
     ['"Bearer" with no token', async () => ({ Authorization: 'Bearer ' })],
     ['a token that is not a JWT', async () => ({ Authorization: 'Bearer not-a-jwt' })],
-    ['a token signed with another secret', async () => ({ Authorization: `Bearer ${await h.sign({ sub: 'u' }, { secret: 'x'.repeat(40) })}` })],
-    ['a token from another issuer', async () => ({ Authorization: `Bearer ${await h.sign({ sub: 'u' }, { issuer: 'someone-else' })}` })],
-    ['an expired token', async () => ({ Authorization: `Bearer ${await h.sign({ sub: 'u', exp: Math.floor(Date.now() / 1000) - 60 })}` })],
+    [
+      'a token signed with another secret',
+      async () => ({ Authorization: `Bearer ${await h.sign({ sub: 'u' }, { secret: 'x'.repeat(40) })}` }),
+    ],
+    [
+      'a token from another issuer',
+      async () => ({ Authorization: `Bearer ${await h.sign({ sub: 'u' }, { issuer: 'someone-else' })}` }),
+    ],
+    [
+      'an expired token',
+      async () => ({ Authorization: `Bearer ${await h.sign({ sub: 'u', exp: Math.floor(Date.now() / 1000) - 60 })}` }),
+    ],
     ['a token with no subject', async () => ({ Authorization: `Bearer ${await h.sign({ role: 'admin' })}` })],
     ['a token whose subject is not a string', async () => ({ Authorization: `Bearer ${await h.sign({ sub: 42 })}` })],
-    ['an unsigned token (alg "none")', async () => ({ Authorization: `Bearer ${unsignedToken({ sub: 'u', iss: h.env.JWT_ISSUER })}` })],
+    [
+      'an unsigned token (alg "none")',
+      async () => ({ Authorization: `Bearer ${unsignedToken({ sub: 'u', iss: h.env.JWT_ISSUER })}` }),
+    ],
   ];
 
   describe.each(PROTECTED)('%s %s', (method, path) => {
@@ -78,7 +90,11 @@ describe('403: top-ups need approved KYC', () => {
     const before = h.payments.calls.length;
     const res = await h.http.post('/wallet/top-ups').set(auth).send({ amountMinor: 5_000, paymentToken: 'tok_card' });
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ statusCode: 403, code: 'FORBIDDEN', message: 'KYC must be approved before topping up the wallet' });
+    expect(res.body).toEqual({
+      statusCode: 403,
+      code: 'FORBIDDEN',
+      message: 'KYC must be approved before topping up the wallet',
+    });
     expect(h.payments.calls.length).toBe(before);
   });
 

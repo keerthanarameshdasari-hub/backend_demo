@@ -106,7 +106,11 @@ describe('top-ups, persisted', () => {
     expect(Date.now() - started).toBeLessThan(TIMEOUT_MS * 20);
 
     const row = await db.client.topUp.findUniqueOrThrow({ where: { id: result.topUp.id } });
-    expect(row).toMatchObject({ status: 'TIMED_OUT', failureReason: 'Payment provider did not respond in time', providerReference: null });
+    expect(row).toMatchObject({
+      status: 'TIMED_OUT',
+      failureReason: 'Payment provider did not respond in time',
+      providerReference: null,
+    });
     expect(row.completedAt).not.toBeNull();
     expect((await db.client.wallet.findUniqueOrThrow({ where: { userId: user.id } })).balanceMinor).toBe(0n);
     expect(payments.lastCall?.signal.aborted).toBe(true);

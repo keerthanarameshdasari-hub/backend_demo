@@ -94,7 +94,10 @@ export async function createHarness(envOverrides: Partial<Env> = {}): Promise<Ha
     async signUp(kycStatus = 'NOT_STARTED') {
       counter += 1;
       const email = `user${counter}@example.com`;
-      const reg = await http.post('/auth/register').send({ email, password: PASSWORD, fullName: `User ${counter}` }).expect(201);
+      const reg = await http
+        .post('/auth/register')
+        .send({ email, password: PASSWORD, fullName: `User ${counter}` })
+        .expect(201);
       const login = await http.post('/auth/login').send({ email, password: PASSWORD }).expect(200);
       const userId = reg.body.id as string;
       if (kycStatus !== 'NOT_STARTED') await users.updateKycStatus(userId, kycStatus);
@@ -117,7 +120,11 @@ export async function createHarness(envOverrides: Partial<Env> = {}): Promise<Ha
 export function kycUpload(
   h: Harness,
   auth: { Authorization: string },
-  parts: { documentType?: string; documentNumber?: string; file?: { bytes: Uint8Array | Buffer; contentType: string; filename?: string } | null } = {},
+  parts: {
+    documentType?: string;
+    documentNumber?: string;
+    file?: { bytes: Uint8Array | Buffer; contentType: string; filename?: string } | null;
+  } = {},
 ) {
   const req = h.http.post('/kyc').set(auth);
   if (parts.documentType !== undefined) req.field('documentType', parts.documentType);
@@ -125,7 +132,8 @@ export function kycUpload(
   if (parts.documentNumber !== undefined) req.field('documentNumber', parts.documentNumber);
   else req.field('documentNumber', 'P1234567');
   const file = parts.file === undefined ? { bytes: PNG, contentType: 'image/png' } : parts.file;
-  if (file) req.attach('document', Buffer.from(file.bytes), { filename: file.filename ?? 'document', contentType: file.contentType });
+  if (file)
+    req.attach('document', Buffer.from(file.bytes), { filename: file.filename ?? 'document', contentType: file.contentType });
   return req;
 }
 

@@ -1,0 +1,11 @@
+# Generated or vendored: never hand-formatted.
+node_modules/
+dist/
+coverage/
+src/generated/
+package-lock.json
+openapi.json
+
+# Prose is wrapped by hand (aligned tables, deliberate line breaks); Prettier
+# would reflow it without making it clearer.
+*.md

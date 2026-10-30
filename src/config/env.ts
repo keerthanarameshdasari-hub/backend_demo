@@ -74,9 +74,7 @@ export class InvalidEnvironmentError extends Error {
  * logs. Empty strings count as missing.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const cleaned = Object.fromEntries(
-    Object.entries(source).filter(([, value]) => value !== undefined && value !== ''),
-  );
+  const cleaned = Object.fromEntries(Object.entries(source).filter(([, value]) => value !== undefined && value !== ''));
   const result = envSchema.safeParse(cleaned);
   if (result.success) return result.data;
 

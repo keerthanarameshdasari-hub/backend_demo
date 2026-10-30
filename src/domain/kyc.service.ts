@@ -55,7 +55,7 @@ export class KycService {
     // Store the document first: if this fails nothing has been recorded yet.
     await this.storage.put(documentKey, input.document.bytes, input.document.mimeType);
 
-    const submission = await this.submissions.create({
+    await this.submissions.create({
       id,
       userId: user.id,
       documentType,
@@ -84,7 +84,11 @@ export class KycService {
         ? { status: 'APPROVED' as const, providerReference: result.providerReference, decisionReason: null }
         : result.outcome === 'rejected'
           ? { status: 'REJECTED' as const, providerReference: result.providerReference, decisionReason: result.reason }
-          : { status: 'TIMED_OUT' as const, providerReference: null, decisionReason: 'Verification provider did not respond in time' };
+          : {
+              status: 'TIMED_OUT' as const,
+              providerReference: null,
+              decisionReason: 'Verification provider did not respond in time',
+            };
 
     const updated = await this.submissions.update(id, { ...decided, decidedAt });
     await this.users.updateKycStatus(user.id, decided.status);
