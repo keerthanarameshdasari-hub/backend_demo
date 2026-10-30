@@ -77,6 +77,8 @@ const providers: Provider[] = [
 @Global()
 @Module({
   providers,
-  exports: providers.filter((p): p is Provider & { provide: symbol } => typeof p === 'object' && 'provide' in p).map((p) => p.provide),
+  exports: providers
+    .filter((p): p is Provider & { provide: symbol } => typeof p === 'object' && 'provide' in p)
+    .map((p) => p.provide),
 })
 export class AdaptersModule {}

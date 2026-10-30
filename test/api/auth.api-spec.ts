@@ -5,7 +5,11 @@ let h: Harness;
 beforeAll(async () => (h = await createHarness()));
 afterAll(async () => h.close());
 
-const valid = () => ({ email: `new${Math.random().toString(36).slice(2, 8)}@example.com`, password: PASSWORD, fullName: 'Asha Rao' });
+const valid = () => ({
+  email: `new${Math.random().toString(36).slice(2, 8)}@example.com`,
+  password: PASSWORD,
+  fullName: 'Asha Rao',
+});
 
 describe('POST /auth/register', () => {
   it('201 with the public profile, normalised, never the hash', async () => {
@@ -26,7 +30,10 @@ describe('POST /auth/register', () => {
   it('409 for an email that is already registered, in any case', async () => {
     const body = valid();
     await h.http.post('/auth/register').send(body).expect(201);
-    const res = await h.http.post('/auth/register').send({ ...body, email: body.email.toUpperCase() }).expect(409);
+    const res = await h.http
+      .post('/auth/register')
+      .send({ ...body, email: body.email.toUpperCase() })
+      .expect(409);
     expect(res.body).toEqual(errorBody(409, 'CONFLICT'));
   });
 
@@ -51,13 +58,19 @@ describe('POST /auth/register', () => {
     ['a kycStatus field (mass assignment)', { kycStatus: 'APPROVED' }],
   ])('400 for %s', async (_label, override) => {
     const before = h.users.rows.size;
-    const res = await h.http.post('/auth/register').send({ ...valid(), ...override }).expect(400);
+    const res = await h.http
+      .post('/auth/register')
+      .send({ ...valid(), ...override })
+      .expect(400);
     expect(res.body).toEqual(errorBody(400, 'BAD_REQUEST'));
     expect(h.users.rows.size).toBe(before);
   });
 
   it('400 from the domain for a name that is only spaces', async () => {
-    const res = await h.http.post('/auth/register').send({ ...valid(), fullName: '   ' }).expect(400);
+    const res = await h.http
+      .post('/auth/register')
+      .send({ ...valid(), fullName: '   ' })
+      .expect(400);
     expect(res.body).toEqual({ statusCode: 400, code: 'VALIDATION', message: 'fullName is required' });
   });
 
@@ -67,7 +80,10 @@ describe('POST /auth/register', () => {
   });
 
   it('names the broken rule in the message', async () => {
-    const res = await h.http.post('/auth/register').send({ ...valid(), password: 'short' }).expect(400);
+    const res = await h.http
+      .post('/auth/register')
+      .send({ ...valid(), password: 'short' })
+      .expect(400);
     expect(res.body.message).toMatch(/password must be longer than or equal to 10 characters/);
   });
 });
@@ -105,7 +121,13 @@ describe('GET /users/me', () => {
   it('200 with the signed-in user', async () => {
     const { userId, email, auth } = await h.signUp();
     const res = await h.http.get('/users/me').set(auth).expect(200);
-    expect(res.body).toEqual({ id: userId, email, fullName: expect.any(String), kycStatus: 'NOT_STARTED', createdAt: expect.any(String) });
+    expect(res.body).toEqual({
+      id: userId,
+      email,
+      fullName: expect.any(String),
+      kycStatus: 'NOT_STARTED',
+      createdAt: expect.any(String),
+    });
     expect(res.body).not.toHaveProperty('passwordHash');
   });
 

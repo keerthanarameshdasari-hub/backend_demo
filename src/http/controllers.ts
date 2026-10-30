@@ -252,11 +252,4 @@ export class WalletController {
   }
 }
 
-export const CONTROLLERS = [
-  HealthController,
-  MetaController,
-  AuthController,
-  UsersController,
-  KycController,
-  WalletController,
-];
+export const CONTROLLERS = [HealthController, MetaController, AuthController, UsersController, KycController, WalletController];

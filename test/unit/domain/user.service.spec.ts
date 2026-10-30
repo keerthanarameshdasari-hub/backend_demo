@@ -61,7 +61,10 @@ describe('UserService.register', () => {
     ['a blank full name', { fullName: '   ' }],
   ])('rejects %s', async (label, override) => {
     const { service, users } = setup();
-    await expect(service.register({ ...valid, ...override })).toBeRefusedWith(ValidationError, `registration needs valid input (${label})`);
+    await expect(service.register({ ...valid, ...override })).toBeRefusedWith(
+      ValidationError,
+      `registration needs valid input (${label})`,
+    );
     expect(users.rows.size).toBe(0);
   });
 
@@ -75,7 +78,9 @@ describe('UserService.authenticate', () => {
   it('signs in with any casing of the email', async () => {
     const { service } = setup();
     await service.register(valid);
-    await expect(service.authenticate(' ASHA@example.com', 'long-enough-pw')).resolves.toMatchObject({ email: 'asha@example.com' });
+    await expect(service.authenticate(' ASHA@example.com', 'long-enough-pw')).resolves.toMatchObject({
+      email: 'asha@example.com',
+    });
   });
 
   it('gives the same error for an unknown email and a wrong password', async () => {
@@ -115,9 +120,8 @@ describe('email helpers', () => {
     expect(isPlausibleEmail(e)).toBe(true),
   );
 
-  it.each(['', 'plain', '@example.com', 'a@', 'a@b', 'a@.com', 'a@b.', 'a@@b.com', 'a@b@c.com', 'a b@c.com'])(
-    'rejects %p',
-    (e) => expect(isPlausibleEmail(e)).toBe(false),
+  it.each(['', 'plain', '@example.com', 'a@', 'a@b', 'a@.com', 'a@b.', 'a@@b.com', 'a@b@c.com', 'a b@c.com'])('rejects %p', (e) =>
+    expect(isPlausibleEmail(e)).toBe(false),
   );
 
   it('rejects over-long input and stays fast on hostile input', () => {

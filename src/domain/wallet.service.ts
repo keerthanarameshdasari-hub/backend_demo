@@ -44,7 +44,11 @@ export class WalletService {
 
   async topUp(input: TopUpInput): Promise<TopUpOutcome> {
     const { amountMinor } = input;
-    if (!Number.isSafeInteger(amountMinor) || amountMinor < this.policy.minTopUpMinor || amountMinor > this.policy.maxTopUpMinor) {
+    if (
+      !Number.isSafeInteger(amountMinor) ||
+      amountMinor < this.policy.minTopUpMinor ||
+      amountMinor > this.policy.maxTopUpMinor
+    ) {
       throw new ValidationError(
         `amountMinor must be a whole number between ${this.policy.minTopUpMinor} and ${this.policy.maxTopUpMinor}`,
       );
