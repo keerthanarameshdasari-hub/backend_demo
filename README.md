@@ -152,7 +152,8 @@ src/
   config/      Env validation.
   scripts/     generate-openapi, ensure-bucket.
 prisma/        Schema and migrations.
-test/          unit/ (domain, config, mocks, architecture) and e2e/ (HTTP, in-memory ports).
+test/          unit/ (domain with port fakes, config, adapters, architecture), integration/ (real
+               Postgres) and api/ (every endpoint over HTTP). Port fakes live in test/fakes.ts.
 ```
 
 To add a real payment provider: write `src/adapters/<name>/<name>-payment.gateway.ts` implementing
@@ -171,7 +172,7 @@ To add a real payment provider: write `src/adapters/<name>/<name>-payment.gatewa
   match the declared type.
 - **Logging.** One line per request: method, path, status, duration, request id. Request bodies,
   headers (including `Authorization`), query strings and env values are never logged. Prisma logs
-  only warnings and errors, without query parameters. The e2e suite checks this.
+  only warnings and errors, without query parameters. The API suite checks this.
 
 ## Database
 
@@ -199,22 +200,48 @@ the image itself.
 
 ## Tests
 
-Use Node 26. NestJS 12 ships as ES modules only; `npm test` starts Jest with
-`--experimental-vm-modules` so it can load them (the app itself needs no flag).
+Use Node 26. NestJS 12 ships as ES modules only, so the test scripts start Jest with
+`--experimental-vm-modules` (the app itself needs no flag). There are three layers, each with
+its own Jest config:
 
-```sh
-npm test                 # everything (integration tests skip unless TEST_DATABASE_URL is set)
-npm run test:unit        # domain, config validation, mocks, architecture rules
-npm run test:e2e         # HTTP end to end with in-memory persistence: no Docker needed
-npm run test:integration # Prisma adapters against a real, migrated Postgres
+| Script | Layer | Needs | What it covers |
+|---|---|---|---|
+| `npm run test:unit` | `test/unit` | nothing | Domain services against in-memory fakes of every port, plus config, adapters and architecture rules. Fails if coverage of `src/domain` drops below 80% (statements, branches, functions or lines). |
+| `npm run test:api` | `test/api` | nothing | Every endpoint through supertest on the real Nest app (guard, validation, error filter, multer), with ports swapped for fakes: success paths, 401 for every bad-token case, 403 for top-ups without approved KYC, and validation errors. |
+| `npm run test:int` | `test/integration` | Docker, or `TEST_DATABASE_URL` | The Prisma adapters and domain services against a real Postgres, after `prisma migrate deploy` has applied the real migrations. Also checks the migrations themselves: no drift from `schema.prisma`, expected constraints, and `down.sql` round-trips. |
+| `npm test` | all three | as above | Runs unit, then API, then integration. |
+
+### Domain unit tests
+
+`test/fakes.ts` has an in-memory fake for every port. `FakeKycProvider` and `FakePaymentGateway`
+are scripted per call: a result, `'hang'` (never answers, like a dead provider), `{ after, result }`
+(answers late) or an `Error` (an outage). Deadlines run on Jest's fake timers, so the timeout paths
+are exact and instant. Tests name the rule they protect, so a broken rule reads like this:
+
+```text
+Domain rule: only KYC-APPROVED users can top up
+
+RULE BROKEN: expected the call to be refused with KycRequiredError, but it succeeded and returned: …
 ```
 
-The integration suite empties the tables it uses, so point it at a throwaway database:
+Coverage reports land in `coverage/unit/` (open `lcov-report/index.html`).
+
+### Integration tests
+
+With nothing set, `test:int` starts a throwaway Postgres with
+[Testcontainers](https://node.testcontainers.org/), on the same image and digest as
+`docker-compose.yml`, and removes it afterwards. Docker must be running.
+
+In CI, or to use a database you already have, set `TEST_DATABASE_URL` and no container is started.
+For a GitHub Actions `services: postgres` container, point it at that service. Locally:
 
 ```sh
-docker compose up -d postgres migrate
-TEST_DATABASE_URL=postgresql://wallet:wallet@localhost:5432/wallet npm run test:integration
+docker compose up -d postgres
+TEST_DATABASE_URL=postgresql://wallet:wallet@localhost:5432/wallet npm run test:int
 ```
+
+Either way the suite applies the migrations first and **empties every table** between tests, so
+never point `TEST_DATABASE_URL` at data you care about.
 
 ## Docker
 
