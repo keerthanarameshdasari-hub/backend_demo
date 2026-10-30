@@ -251,5 +251,5 @@ never point `TEST_DATABASE_URL` at data you care about.
 
 The `Dockerfile` has four stages: `build` (all deps, compile), `migrate` (Prisma CLI, used only by
 the compose migration job), `prod-deps` (`npm ci --omit=dev`) and `runtime`, which contains only
-production dependencies and the compiled app, runs as the unprivileged `node` user and has a
-`HEALTHCHECK` on `/health`. Base images are pinned by digest; Dependabot keeps them current.
+production dependencies and the compiled app (the base image's npm is removed: nothing uses it at
+runtime), runs as the unprivileged `node` user and has a `HEALTHCHECK` on `/health`. Base images are pinned by digest; Dependabot keeps them current.

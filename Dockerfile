@@ -38,6 +38,10 @@ RUN --mount=type=cache,target=/root/.npm \
 # ---------------------------------------------------------------- runtime
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
+# The app runs with plain `node`; the npm bundled in the base image is never used
+# at runtime, and its own dependencies are what image scans flag. Remove it.
+# (The migrate stage, which needs npx, is built from `build`, not from here.)
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app
 COPY --from=prod-deps --chown=root:root /app/node_modules ./node_modules
 COPY --from=build --chown=root:root /app/dist ./dist
