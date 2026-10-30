@@ -252,7 +252,23 @@ jobs:
 
       - name: Scan the image (HIGH/CRITICAL vulnerabilities that have a fix)
         run: |
-          "$RUNNER_TEMP/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE"
+          set -euo pipefail
+          trivy="$RUNNER_TEMP/trivy"
+          "$trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+            --format json --output trivy-image.json "$IMAGE"
+
+          # Readable table in the log and the job summary.
+          "$trivy" convert --format table trivy-image.json
+          { echo "### Image vulnerabilities (HIGH/CRITICAL, fix available)"; echo '```'; "$trivy" convert --format table trivy-image.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+          # One PR annotation per finding, then fail if there were any.
+          jq -r '.Results[]? | .Target as $t | .Vulnerabilities[]?
+            | "::error title=\(.VulnerabilityID) (\(.Severity))::\(.PkgName) \(.InstalledVersion) in \($t): fixed in \(.FixedVersion)"' trivy-image.json
+          count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy-image.json)
+          if [ "$count" -gt 0 ]; then
+            echo "::error::The image has $count HIGH/CRITICAL vulnerabilities with a fix available."
+            exit 1
+          fi
 
   # The one check to require in the branch rulesets. GitHub treats a skipped
   # required check as passing, so this job always runs and fails unless every
