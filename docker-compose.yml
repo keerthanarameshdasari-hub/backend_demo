@@ -25,7 +25,9 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      # -h 127.0.0.1: check over TCP. On first start the image runs a temporary
+      # socket-only server while it initialises; a socket check would pass early.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U wallet -d wallet"]
       interval: 5s
       timeout: 3s
       retries: 20

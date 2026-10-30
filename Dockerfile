@@ -26,9 +26,14 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 FROM ${NODE_IMAGE} AS prod-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-# --ignore-scripts: skip `prisma generate` (the CLI is a dev dependency; the
-# generated client is already compiled into dist/).
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+# Production dependencies only, at the exact locked versions. `npm ci` alone
+# would also install the Prisma CLI and TypeScript, because @prisma/client and
+# @nestjs/swagger list them as peers; neither is used at runtime (the app and
+# the Prisma client are compiled at build time), so the prune drops them
+# (~440 MB -> ~190 MB). --ignore-scripts skips `prisma generate` for the same reason.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+ && npm prune --omit=dev --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 # ---------------------------------------------------------------- runtime
 FROM ${NODE_IMAGE} AS runtime
