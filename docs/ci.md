@@ -27,9 +27,8 @@ The Security workflow also runs:
 
 It never runs on `pull_request_target`, and it needs no secrets.
 
-A pull request can only merge when all of its required checks are green. PRs into `dev` and
-`test` need nothing more, so you can merge your own. PRs into `main` also need an approval from
-the other maintainer (see "Who reviews what").
+A pull request can only merge when all of its required checks are green. PRs into `test` and
+`main` also need an approval from the other maintainer (see "Who reviews what").
 
 ## CI jobs
 
@@ -210,19 +209,26 @@ Because every file has owners, GitHub automatically asks the other maintainer to
 pull request; it shows up in their GitHub notifications (and email, if they have it on). What
 that review means depends on where the PR is going:
 
-- **Into `dev` or `test`** (`dev-test` ruleset): the review is optional. Once the checks are
-  green you can merge your own PR.
-- **Into `main`** (`main-strict` ruleset): one approval from a code owner other than the PR's
-  author is required. If new commits are pushed after the approval, it is dismissed and the
-  PR needs approving again. Nobody, admins included, can bypass this.
+Each branch has its own ruleset (Settings → Rules → Rulesets):
+
+| | `protect-dev` | `protect-test` | `protect-main` |
+|---|---|---|---|
+| Approvals needed | none set | 1, from a code owner | 1, from a code owner |
+| Merge method | squash only | merge commit only | merge commit only |
+| Branch must be up to date with its target | yes | no | no |
+
+All three also: dismiss an approval when new commits are pushed, require every review
+conversation to be resolved, and block force-pushes and deleting the branch. None has a bypass
+list, so admins follow the same rules. A fourth ruleset, `protect-release-tags`, stops `v*` tags
+from being moved or deleted.
 
 To review, open the PR, go to **Files changed → Review changes**, pick **Approve** or
 **Request changes**, and submit.
 
 ## Required checks
 
-These are the check names to require in all three branch rulesets, `dev-test` (for `dev` and
-`test`) and `main-strict` (for `main`):
+These are the check names to require in all three branch rulesets, `protect-dev`,
+`protect-test` and `protect-main`:
 
 | Check name | Workflow | Job |
 |---|---|---|
