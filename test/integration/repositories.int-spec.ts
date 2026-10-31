@@ -37,6 +37,7 @@ const aUser = (overrides: Partial<User> = {}): User => ({
   email: `user${n}@example.com`,
   fullName: 'Int Test',
   passwordHash: 'scrypt$x',
+  role: 'USER',
   kycStatus: 'NOT_STARTED',
   createdAt: T0,
   ...overrides,
@@ -55,6 +56,7 @@ const aSubmission = (userId: string, overrides: Partial<KycSubmission> = {}): Ky
   decisionReason: null,
   createdAt: T0,
   decidedAt: null,
+  reviewedBy: null,
   ...overrides,
 });
 
@@ -243,5 +245,71 @@ describe('PrismaWalletRepository', () => {
     await wallets.createTopUp(aTopUp(userId));
     await db.client.user.delete({ where: { id: userId } });
     await expect(wallets.listTopUps(userId, 10)).resolves.toEqual([]);
+  });
+});
+
+describe('admin listings', () => {
+  it('users: role round-trips, list pages newest first with a filtered total, findByIds skips unknown ids', async () => {
+    const old = await users.create(aUser({ createdAt: at(0), kycStatus: 'APPROVED' }));
+    const mid = await users.create(aUser({ email: 'mid@example.com', createdAt: at(10), kycStatus: 'REJECTED' }));
+    const recent = await users.create(aUser({ email: 'new@example.com', createdAt: at(20), kycStatus: 'APPROVED' }));
+
+    await users.updateRole(mid.id, 'ADMIN');
+    expect((await users.findById(mid.id))!.role).toBe('ADMIN');
+
+    const page = await users.list({ limit: 2, offset: 0 });
+    expect(page.total).toBe(3);
+    expect(page.items.map((u) => u.id)).toEqual([recent.id, mid.id]);
+    expect((await users.list({ limit: 2, offset: 2 })).items.map((u) => u.id)).toEqual([old.id]);
+
+    const approved = await users.list({ kycStatus: 'APPROVED', limit: 10, offset: 0 });
+    expect(approved).toEqual({ items: [recent, old], total: 2 });
+
+    const found = await users.findByIds([old.id, uuid(), recent.id]);
+    expect(found.map((u) => u.id).sort()).toEqual([old.id, recent.id].sort());
+    await expect(users.findByIds([])).resolves.toEqual([]);
+  });
+
+  it('KYC: finds by id, lists across users by status, and records the reviewer', async () => {
+    const a = await users.create(aUser({ createdAt: at(0) }));
+    const b = await users.create(aUser({ email: 'b@example.com', createdAt: at(0) }));
+    const admin = await users.create(aUser({ email: 'admin@example.com', role: 'ADMIN', createdAt: at(0) }));
+    const s1 = await kyc.create(aSubmission(a.id, { createdAt: at(1), status: 'REJECTED' }));
+    const s2 = await kyc.create(aSubmission(b.id, { createdAt: at(2), status: 'APPROVED' }));
+    const s3 = await kyc.create(aSubmission(a.id, { createdAt: at(3), status: 'REJECTED' }));
+
+    expect(await kyc.findById(s2.id)).toEqual(s2);
+    expect(await kyc.findById(uuid())).toBeNull();
+
+    expect((await kyc.list({ limit: 10, offset: 0 })).items.map((s) => s.id)).toEqual([s3.id, s2.id, s1.id]);
+    expect(await kyc.list({ status: 'REJECTED', limit: 1, offset: 1 })).toEqual({ items: [s1], total: 2 });
+
+    const reviewed = await kyc.update(s3.id, {
+      status: 'APPROVED',
+      decisionReason: null,
+      decidedAt: at(9),
+      reviewedBy: admin.id,
+    });
+    expect(reviewed).toMatchObject({ status: 'APPROVED', reviewedBy: admin.id });
+
+    // Deleting the reviewer keeps the decision and forgets who made it.
+    await db.client.user.delete({ where: { id: admin.id } });
+    expect(await kyc.findById(s3.id)).toMatchObject({ status: 'APPROVED', reviewedBy: null });
+  });
+
+  it('top-ups: lists across users, by user and by status, with totals', async () => {
+    const a = await users.create(aUser({ createdAt: at(0) }));
+    const b = await users.create(aUser({ email: 'b@example.com', createdAt: at(0) }));
+    const t1 = await wallets.createTopUp(aTopUp(a.id, { createdAt: at(1) }));
+    const t2 = await wallets.createTopUp(aTopUp(b.id, { createdAt: at(2), status: 'FAILED', failureReason: 'card_declined' }));
+    const t3 = await wallets.createTopUp(aTopUp(a.id, { createdAt: at(3), status: 'FAILED', failureReason: 'card_declined' }));
+
+    expect((await wallets.listAllTopUps({ limit: 10, offset: 0 })).items.map((t) => t.id)).toEqual([t3.id, t2.id, t1.id]);
+    expect(await wallets.listAllTopUps({ userId: a.id, limit: 10, offset: 0 })).toEqual({ items: [t3, t1], total: 2 });
+    expect(await wallets.listAllTopUps({ userId: a.id, status: 'FAILED', limit: 10, offset: 0 })).toEqual({
+      items: [t3],
+      total: 1,
+    });
+    expect((await wallets.listAllTopUps({ status: 'FAILED', limit: 1, offset: 0 })).total).toBe(2);
   });
 });

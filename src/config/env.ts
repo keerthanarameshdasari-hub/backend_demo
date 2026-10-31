@@ -9,6 +9,30 @@ const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
 const int = (min: number, max = Number.MAX_SAFE_INTEGER) => z.coerce.number().int().min(min).max(max);
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
+/** "https://a.example, https://b.example" -> ['https://a.example', 'https://b.example'], each a bare origin. */
+const originList = z
+  .string()
+  .transform((v) =>
+    v
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+  )
+  .pipe(
+    z
+      .array(
+        z.string().refine((o) => {
+          try {
+            const url = new URL(o);
+            return /^https?:$/.test(url.protocol) && url.origin === o;
+          } catch {
+            return false;
+          }
+        }, 'must be a comma-separated list of origins such as https://admin.example.com (no path or trailing slash)'),
+      )
+      .min(1),
+  );
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']),
@@ -25,6 +49,12 @@ export const envSchema = z
     JWT_EXPIRES_IN_SECONDS: int(60, 60 * 60 * 24),
 
     MIN_APP_VERSION: z.string().regex(SEMVER, 'must look like 1.2.3'),
+
+    /**
+     * Browser origins allowed to call the API cross-origin (the admin portal).
+     * Unset = no CORS headers at all, so browsers on other origins are refused.
+     */
+    CORS_ALLOWED_ORIGINS: originList.optional(),
 
     // Adapter selection. Add a value here when a real provider adapter lands.
     STORAGE_PROVIDER: z.enum(['s3']),

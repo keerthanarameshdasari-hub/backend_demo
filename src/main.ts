@@ -27,6 +27,16 @@ async function bootstrap(): Promise<void> {
   });
   app.disable('x-powered-by');
   app.enableShutdownHooks();
+  if (env.CORS_ALLOWED_ORIGINS) {
+    // Bearer tokens only (no cookies), so credentials stay off.
+    app.enableCors({
+      origin: env.CORS_ALLOWED_ORIGINS,
+      methods: ['GET', 'POST'],
+      allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
+      credentials: false,
+      maxAge: 600,
+    });
+  }
 
   if (env.NODE_ENV !== 'production') {
     SwaggerModule.setup('docs', app, buildOpenApiDocument(app, process.env.npm_package_version ?? '0.0.0'));

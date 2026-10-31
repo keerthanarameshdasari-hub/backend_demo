@@ -26,6 +26,11 @@ enum KycStatus {
   TIMED_OUT
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 enum DocumentType {
   PASSPORT
   NATIONAL_ID
@@ -44,13 +49,16 @@ model User {
   email        String    @unique
   fullName     String    @map("full_name")
   passwordHash String    @map("password_hash")
+  role         UserRole  @default(USER)
   kycStatus    KycStatus @default(NOT_STARTED) @map("kyc_status")
   createdAt    DateTime  @map("created_at") @db.Timestamptz(3)
 
   kycSubmissions KycSubmission[]
+  kycReviews     KycSubmission[] @relation("KycReviewer")
   wallet         Wallet?
   topUps         TopUp[]
 
+  @@index([createdAt])
   @@map("users")
 }
 
@@ -67,10 +75,13 @@ model KycSubmission {
   decisionReason      String?      @map("decision_reason")
   createdAt           DateTime     @map("created_at") @db.Timestamptz(3)
   decidedAt           DateTime?    @map("decided_at") @db.Timestamptz(3)
+  reviewedBy          String?      @map("reviewed_by") @db.Uuid
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("KycReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+  @@index([status, createdAt])
   @@map("kyc_submissions")
 }
 
@@ -101,5 +112,6 @@ model TopUp {
 
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
+  @@index([createdAt])
   @@map("top_ups")
 }
