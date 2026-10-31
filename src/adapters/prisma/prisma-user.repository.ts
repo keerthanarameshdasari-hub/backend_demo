@@ -1,4 +1,12 @@
-import { type KycStatus, type User, type UserRepository, ConflictError } from '../../domain';
+import {
+  type KycStatus,
+  type Page,
+  type PageRequest,
+  type User,
+  type UserRepository,
+  type UserRole,
+  ConflictError,
+} from '../../domain';
 import { Prisma, type User as UserRow } from '../../generated/prisma/client';
 import type { PrismaDatabase } from './prisma.service';
 
@@ -7,6 +15,7 @@ const toUser = (row: UserRow): User => ({
   email: row.email,
   fullName: row.fullName,
   passwordHash: row.passwordHash,
+  role: row.role,
   kycStatus: row.kycStatus,
   createdAt: row.createdAt,
 });
@@ -38,5 +47,24 @@ export class PrismaUserRepository implements UserRepository {
 
   async updateKycStatus(userId: string, status: KycStatus): Promise<void> {
     await this.db.client.user.update({ where: { id: userId }, data: { kycStatus: status } });
+  }
+
+  async updateRole(userId: string, role: UserRole): Promise<void> {
+    await this.db.client.user.update({ where: { id: userId }, data: { role } });
+  }
+
+  async findByIds(ids: readonly string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db.client.user.findMany({ where: { id: { in: [...ids] } } });
+    return rows.map(toUser);
+  }
+
+  async list({ kycStatus, limit, offset }: { kycStatus?: KycStatus } & PageRequest): Promise<Page<User>> {
+    const where = kycStatus ? { kycStatus } : {};
+    const [rows, total] = await this.db.client.$transaction([
+      this.db.client.user.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: offset, take: limit }),
+      this.db.client.user.count({ where }),
+    ]);
+    return { items: rows.map(toUser), total };
   }
 }

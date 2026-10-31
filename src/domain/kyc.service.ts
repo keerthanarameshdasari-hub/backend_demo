@@ -68,6 +68,7 @@ export class KycService {
       decisionReason: null,
       createdAt: this.clock.now(),
       decidedAt: null,
+      reviewedBy: null,
     });
     await this.users.updateKycStatus(user.id, 'PENDING');
 

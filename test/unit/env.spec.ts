@@ -48,4 +48,22 @@ describe('loadEnv', () => {
     const { S3_ACCESS_KEY_ID: _k, ...neither } = rest;
     expect(() => loadEnv(neither)).not.toThrow();
   });
+
+  describe('CORS_ALLOWED_ORIGINS', () => {
+    it('is optional', () => {
+      expect(loadEnv(TEST_ENV).CORS_ALLOWED_ORIGINS).toBeUndefined();
+    });
+
+    it('splits a comma-separated list of origins', () => {
+      const env = loadEnv({ ...TEST_ENV, CORS_ALLOWED_ORIGINS: 'https://admin.example.com, http://localhost:5173 ,' });
+      expect(env.CORS_ALLOWED_ORIGINS).toEqual(['https://admin.example.com', 'http://localhost:5173']);
+    });
+
+    it.each(['*', 'https://admin.example.com/', 'https://admin.example.com/path', 'ftp://admin.example.com', ' , '])(
+      'rejects %j',
+      (value) => {
+        expect(() => loadEnv({ ...TEST_ENV, CORS_ALLOWED_ORIGINS: value })).toThrow(/CORS_ALLOWED_ORIGINS/);
+      },
+    );
+  });
 });

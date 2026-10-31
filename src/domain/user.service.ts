@@ -55,6 +55,7 @@ export class UserService {
       email,
       fullName,
       passwordHash: await this.hasher.hash(input.password),
+      role: 'USER',
       kycStatus: 'NOT_STARTED',
       createdAt: this.clock.now(),
     });

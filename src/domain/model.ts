@@ -9,6 +9,9 @@ export type KycStatus = (typeof KYC_STATUSES)[number];
 export const DOCUMENT_TYPES = ['PASSPORT', 'NATIONAL_ID', 'DRIVING_LICENCE'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+export const USER_ROLES = ['USER', 'ADMIN'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export const TOP_UP_STATUSES = ['PENDING', 'SUCCEEDED', 'FAILED', 'TIMED_OUT'] as const;
 export type TopUpStatus = (typeof TOP_UP_STATUSES)[number];
 
@@ -17,6 +20,8 @@ export interface User {
   email: string;
   fullName: string;
   passwordHash: string;
+  /** ADMIN unlocks the /admin endpoints. Granted only by the promote-admin script. */
+  role: UserRole;
   kycStatus: KycStatus;
   createdAt: Date;
 }
@@ -43,6 +48,8 @@ export interface KycSubmission {
   decisionReason: string | null;
   createdAt: Date;
   decidedAt: Date | null;
+  /** The admin who overrode the provider's decision; null when the provider decided. */
+  reviewedBy: string | null;
 }
 
 export interface Wallet {
@@ -63,4 +70,15 @@ export interface TopUp {
   failureReason: string | null;
   createdAt: Date;
   completedAt: Date | null;
+}
+
+/** One page of a listing, plus the total number of matching rows. */
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
+
+export interface PageRequest {
+  limit: number;
+  offset: number;
 }

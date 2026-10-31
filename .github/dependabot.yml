@@ -1,6 +1,6 @@
 # Dependabot version updates.
-# Note: GitHub reads this file from the DEFAULT branch (main). It only takes effect
-# once it has been promoted dev -> test -> main.
+# Note: GitHub reads this file from the repository's default branch, which is dev
+# (not main), so a change here takes effect as soon as it merges into dev.
 # Gradle and Bundler are not configured because this repo has no build.gradle or
 # Gemfile yet; add those ecosystems when the files appear.
 version: 2
