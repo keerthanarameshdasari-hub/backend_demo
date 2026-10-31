@@ -43,3 +43,9 @@ export class KycRequiredError extends DomainError {
     super('FORBIDDEN', 'KYC must be approved before topping up the wallet');
   }
 }
+
+export class ForbiddenError extends DomainError {
+  constructor(message: string) {
+    super('FORBIDDEN', message);
+  }
+}

@@ -6,7 +6,9 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Post,
   Query,
   Res,
@@ -29,6 +31,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -36,9 +39,18 @@ import {
 import type { Response } from 'express';
 import { ENV, READINESS_PROBES } from '../app/tokens';
 import type { Env } from '../config/env';
-import { KycService, type ReadinessProbe, UserService, WalletService } from '../domain';
+import { AdminService, KycService, type ReadinessProbe, UserService, WalletService } from '../domain';
+import { AdminGuard } from './auth/admin.guard';
 import { CurrentUserId, JwtAuthGuard } from './auth/jwt-auth.guard';
 import {
+  AdminKycQuery,
+  AdminKycSubmissionPage,
+  AdminKycSubmissionResponse,
+  AdminTopUpPage,
+  AdminTopUpResponse,
+  AdminTopUpsQuery,
+  AdminUserPage,
+  AdminUsersQuery,
   ErrorResponse,
   HealthResponse,
   KycSubmissionForm,
@@ -47,6 +59,7 @@ import {
   MinAppVersionResponse,
   ReadinessResponse,
   RegisterRequest,
+  RejectKycRequest,
   TokenResponse,
   TopUpRequest,
   TopUpResponse,
@@ -252,4 +265,90 @@ export class WalletController {
   }
 }
 
-export const CONTROLLERS = [HealthController, MetaController, AuthController, UsersController, KycController, WalletController];
+// ------------------------------------------------------------------ admin
+
+/**
+ * Back office for the admin portal. Every route needs a valid token (401
+ * otherwise) belonging to an ADMIN (403 otherwise).
+ */
+@ApiTags('admin')
+@ApiBearerAuth()
+@ApiUnauthorizedResponse({ type: ErrorResponse })
+@ApiForbiddenResponse({ type: ErrorResponse, description: 'Signed in, but not an admin' })
+@UseGuards(JwtAuthGuard, AdminGuard)
+@Controller('admin')
+export class AdminController {
+  constructor(private readonly admin: AdminService) {}
+
+  @Get('users')
+  @ApiOperation({ summary: 'All users, newest first' })
+  @ApiOkResponse({ type: AdminUserPage })
+  async users(@CurrentUserId() adminId: string, @Query() query: AdminUsersQuery): Promise<AdminUserPage> {
+    const page = await this.admin.listUsers(adminId, query);
+    return { items: page.items.map(UserResponse.from), total: page.total, limit: query.limit, offset: query.offset };
+  }
+
+  @Get('kyc')
+  @ApiOperation({ summary: 'KYC submissions from every user, newest first' })
+  @ApiOkResponse({ type: AdminKycSubmissionPage })
+  async kyc(@CurrentUserId() adminId: string, @Query() query: AdminKycQuery): Promise<AdminKycSubmissionPage> {
+    const page = await this.admin.listKycSubmissions(adminId, query);
+    return {
+      items: page.items.map(AdminKycSubmissionResponse.fromOwned),
+      total: page.total,
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
+
+  @Post('kyc/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Override the provider and approve a REJECTED or TIMED_OUT submission (the user's latest only)",
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: AdminKycSubmissionResponse })
+  @ApiNotFoundResponse({ type: ErrorResponse })
+  @ApiConflictResponse({ type: ErrorResponse, description: 'Already approved, still PENDING, or not the latest submission' })
+  async approveKyc(
+    @CurrentUserId() adminId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<AdminKycSubmissionResponse> {
+    return AdminKycSubmissionResponse.fromOwned(await this.admin.approveKyc(adminId, id));
+  }
+
+  @Post('kyc/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Override the provider and reject an APPROVED or TIMED_OUT submission (the user's latest only)",
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ type: AdminKycSubmissionResponse })
+  @ApiNotFoundResponse({ type: ErrorResponse })
+  @ApiConflictResponse({ type: ErrorResponse, description: 'Already rejected, still PENDING, or not the latest submission' })
+  async rejectKyc(
+    @CurrentUserId() adminId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: RejectKycRequest,
+  ): Promise<AdminKycSubmissionResponse> {
+    return AdminKycSubmissionResponse.fromOwned(await this.admin.rejectKyc(adminId, id, body.reason));
+  }
+
+  @Get('top-ups')
+  @ApiOperation({ summary: 'Wallet top-ups from every user (or one), newest first' })
+  @ApiOkResponse({ type: AdminTopUpPage })
+  async topUps(@CurrentUserId() adminId: string, @Query() query: AdminTopUpsQuery): Promise<AdminTopUpPage> {
+    const page = await this.admin.listTopUps(adminId, query);
+    return { items: page.items.map(AdminTopUpResponse.fromOwned), total: page.total, limit: query.limit, offset: query.offset };
+  }
+}
+
+export const CONTROLLERS = [
+  HealthController,
+  MetaController,
+  AuthController,
+  UsersController,
+  KycController,
+  WalletController,
+  AdminController,
+];

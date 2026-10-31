@@ -3,15 +3,25 @@
  * changing one here changes the published contract: keep changes additive.
  */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import {
   DOCUMENT_TYPES,
   KYC_STATUSES,
+  type KycStatus,
   type KycSubmission,
+  MAX_PAGE_SIZE,
+  MAX_REJECTION_REASON_LENGTH,
   MIN_PASSWORD_LENGTH,
+  MIN_REJECTION_REASON_LENGTH,
+  type OwnedKycSubmission,
+  type OwnedTopUp,
+  type Owner,
   type PublicUser,
   TOP_UP_STATUSES,
   type TopUp,
+  type TopUpStatus,
+  USER_ROLES,
   type Wallet,
 } from '../domain';
 
@@ -65,11 +75,19 @@ export class UserResponse {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() email!: string;
   @ApiProperty() fullName!: string;
+  @ApiProperty({ enum: USER_ROLES, description: 'ADMIN can use the /admin endpoints' }) role!: string;
   @ApiProperty({ enum: KYC_STATUSES }) kycStatus!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 
   static from(user: PublicUser): UserResponse {
-    return { ...user, createdAt: user.createdAt.toISOString() };
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      kycStatus: user.kycStatus,
+      createdAt: user.createdAt.toISOString(),
+    };
   }
 }
 
@@ -170,6 +188,124 @@ export class TopUpResponse {
 export class TopUpResultResponse {
   @ApiProperty({ type: TopUpResponse }) topUp!: TopUpResponse;
   @ApiProperty({ type: WalletResponse }) wallet!: WalletResponse;
+}
+
+// ------------------------------------------------------------------ admin
+
+/** limit/offset query parameters shared by every admin listing. */
+export class PageQuery {
+  @ApiPropertyOptional({ minimum: 1, maximum: MAX_PAGE_SIZE, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_PAGE_SIZE)
+  limit: number = 50;
+
+  @ApiPropertyOptional({ minimum: 0, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset: number = 0;
+}
+
+export class AdminUsersQuery extends PageQuery {
+  @ApiPropertyOptional({ enum: KYC_STATUSES })
+  @IsOptional()
+  @IsIn(KYC_STATUSES)
+  kycStatus?: KycStatus;
+}
+
+export class AdminKycQuery extends PageQuery {
+  @ApiPropertyOptional({ enum: KYC_STATUSES })
+  @IsOptional()
+  @IsIn(KYC_STATUSES)
+  status?: KycStatus;
+}
+
+export class AdminTopUpsQuery extends PageQuery {
+  @ApiPropertyOptional({ format: 'uuid', description: "Only this user's top-ups" })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
+  @ApiPropertyOptional({ enum: TOP_UP_STATUSES })
+  @IsOptional()
+  @IsIn(TOP_UP_STATUSES)
+  status?: TopUpStatus;
+}
+
+export class RejectKycRequest {
+  @ApiProperty({
+    minLength: MIN_REJECTION_REASON_LENGTH,
+    maxLength: MAX_REJECTION_REASON_LENGTH,
+    example: 'Document photo is unreadable',
+    description: 'Shown to the user as the decision reason',
+  })
+  @IsString()
+  @MaxLength(MAX_REJECTION_REASON_LENGTH)
+  reason!: string;
+}
+
+export class OwnerResponse {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() email!: string;
+  @ApiProperty() fullName!: string;
+
+  static from(owner: Owner | null): OwnerResponse | null {
+    return owner ? { id: owner.id, email: owner.email, fullName: owner.fullName } : null;
+  }
+}
+
+export class AdminKycSubmissionResponse extends KycSubmissionResponse {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiPropertyOptional({ type: OwnerResponse, nullable: true }) user!: OwnerResponse | null;
+  @ApiProperty({ example: 'image/png' }) documentMimeType!: string;
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'The admin who overrode the provider decision; null when the provider decided',
+  })
+  reviewedBy!: string | null;
+
+  static fromOwned({ submission, owner }: OwnedKycSubmission): AdminKycSubmissionResponse {
+    return {
+      ...KycSubmissionResponse.from(submission),
+      userId: submission.userId,
+      user: OwnerResponse.from(owner),
+      documentMimeType: submission.documentMimeType,
+      reviewedBy: submission.reviewedBy,
+    };
+  }
+}
+
+export class AdminTopUpResponse extends TopUpResponse {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiPropertyOptional({ type: OwnerResponse, nullable: true }) user!: OwnerResponse | null;
+
+  static fromOwned({ topUp, owner }: OwnedTopUp): AdminTopUpResponse {
+    return { ...TopUpResponse.from(topUp), userId: topUp.userId, user: OwnerResponse.from(owner) };
+  }
+}
+
+class PageResponse {
+  @ApiProperty({ description: 'Rows matching the filter, across all pages' }) total!: number;
+  @ApiProperty() limit!: number;
+  @ApiProperty() offset!: number;
+}
+
+export class AdminUserPage extends PageResponse {
+  @ApiProperty({ type: [UserResponse] }) items!: UserResponse[];
+}
+
+export class AdminKycSubmissionPage extends PageResponse {
+  @ApiProperty({ type: [AdminKycSubmissionResponse] }) items!: AdminKycSubmissionResponse[];
+}
+
+export class AdminTopUpPage extends PageResponse {
+  @ApiProperty({ type: [AdminTopUpResponse] }) items!: AdminTopUpResponse[];
 }
 
 // ------------------------------------------------------------------ ops
