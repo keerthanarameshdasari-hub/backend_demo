@@ -21,6 +21,7 @@ describe('POST /auth/register', () => {
       id: expect.stringMatching(/^[0-9a-f-]{36}$/),
       email: 'asha.rao@example.com',
       fullName: 'Asha Rao',
+      role: 'USER',
       kycStatus: 'NOT_STARTED',
       createdAt: expect.any(String),
     });
@@ -125,6 +126,7 @@ describe('GET /users/me', () => {
       id: userId,
       email,
       fullName: expect.any(String),
+      role: 'USER',
       kycStatus: 'NOT_STARTED',
       createdAt: expect.any(String),
     });

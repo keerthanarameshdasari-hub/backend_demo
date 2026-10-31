@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { MulterModule } from '@nestjs/platform-express';
 import type { Env } from '../config/env';
 import { CONTROLLERS } from '../http/controllers';
+import { AdminGuard } from '../http/auth/admin.guard';
 import { JwtAuthGuard } from '../http/auth/jwt-auth.guard';
 import { ErrorFilter } from '../http/error.filter';
 import { RequestLoggerMiddleware } from '../http/request-logger.middleware';
@@ -35,6 +36,7 @@ import { ENV } from './tokens';
   controllers: CONTROLLERS,
   providers: [
     JwtAuthGuard,
+    AdminGuard,
     { provide: APP_FILTER, useClass: ErrorFilter },
     {
       provide: APP_PIPE,

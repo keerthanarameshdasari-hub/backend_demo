@@ -1,4 +1,4 @@
-import type { TopUp, Wallet, WalletRepository } from '../../domain';
+import type { Page, PageRequest, TopUp, TopUpStatus, Wallet, WalletRepository } from '../../domain';
 import type { TopUp as TopUpRow, Wallet as WalletRow } from '../../generated/prisma/client';
 import type { PrismaDatabase } from './prisma.service';
 
@@ -40,6 +40,20 @@ export class PrismaWalletRepository implements WalletRepository {
       take: limit,
     });
     return rows.map(toTopUp);
+  }
+
+  async listAllTopUps({
+    userId,
+    status,
+    limit,
+    offset,
+  }: { userId?: string; status?: TopUpStatus } & PageRequest): Promise<Page<TopUp>> {
+    const where = { ...(userId ? { userId } : {}), ...(status ? { status } : {}) };
+    const [rows, total] = await this.db.client.$transaction([
+      this.db.client.topUp.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: offset, take: limit }),
+      this.db.client.topUp.count({ where }),
+    ]);
+    return { items: rows.map(toTopUp), total };
   }
 
   async completeTopUp(id: string, providerReference: string, completedAt: Date): Promise<{ topUp: TopUp; wallet: Wallet }> {

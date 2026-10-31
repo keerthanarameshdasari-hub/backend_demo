@@ -63,12 +63,36 @@ curl -s -XPOST $API/wallet/top-ups -H "authorization: Bearer $TOKEN" \
 | GET | `/meta/min-app-version` | – | Oldest supported mobile app version (`MIN_APP_VERSION`). |
 | POST | `/auth/register` | – | Create an account. |
 | POST | `/auth/login` | – | Get a JWT access token. |
-| GET | `/users/me` | JWT | The signed-in user, including `kycStatus`. |
+| GET | `/users/me` | JWT | The signed-in user, including `role` and `kycStatus`. |
 | POST | `/kyc` | JWT | Multipart upload: `documentType`, `documentNumber`, `document` (JPEG/PNG/PDF). |
 | GET | `/kyc` | JWT | Latest KYC submission. |
 | GET | `/wallet` | JWT | Balance. |
 | GET | `/wallet/top-ups` | JWT | Recent top-ups, newest first (`?limit=`, max 100). |
 | POST | `/wallet/top-ups` | JWT | Top up. Needs approved KYC. Optional `Idempotency-Key` header. |
+| GET | `/admin/users` | Admin | Every user, newest first. `?kycStatus=`, `?limit=` (max 100), `?offset=`. |
+| GET | `/admin/kyc` | Admin | Every KYC submission with its owner. `?status=`, `?limit=`, `?offset=`. |
+| POST | `/admin/kyc/{id}/approve` | Admin | Override: approve a `REJECTED` or `TIMED_OUT` submission. |
+| POST | `/admin/kyc/{id}/reject` | Admin | Override: reject an `APPROVED` or `TIMED_OUT` submission. Body `{ "reason": "…" }`. |
+| GET | `/admin/top-ups` | Admin | Every user's top-ups with their owner. `?userId=`, `?status=`, `?limit=`, `?offset=`. |
+
+"Admin" means a JWT whose user has `role: ADMIN`; anyone else gets 403. The role is read from the
+database on each request, so demoting someone takes effect immediately. The `admin_demo` portal
+is the client for these routes.
+
+### Admins
+
+Nobody can become an admin over the API. An operator promotes an existing account with access to
+that environment's database:
+
+```sh
+npm run build
+npm run admin:promote -- someone@example.com   # needs the API's env vars (DATABASE_URL is the one used)
+```
+
+KYC review is an **override**, not a queue: the provider still decides inside `POST /kyc`, and an
+admin can then reverse that decision. Only a user's latest submission can be reviewed, a `PENDING`
+one (still with the provider) can't be touched, an admin can't review their own submission, and
+the reviewing admin is recorded in `reviewedBy`.
 
 Money is always an integer in minor units (`amountMinor: 50000` = ₹500.00).
 
@@ -113,6 +137,7 @@ variables are wrong (names only, never values) and exits before listening.
 | `JWT_ISSUER` | yes | `backend-demo` | `iss` claim, checked on every request. |
 | `JWT_EXPIRES_IN_SECONDS` | yes | `3600` | Token lifetime, 60 s – 24 h. |
 | `MIN_APP_VERSION` | yes | `1.0.0` | Served by `/meta/min-app-version`. |
+| `CORS_ALLOWED_ORIGINS` | no | `https://admin.example.com,http://localhost:5173` | Browser origins allowed to call the API (the admin portal). Exact origins, comma-separated, no `*`. Unset = no CORS. |
 | `STORAGE_PROVIDER` | yes | `s3` | Document storage adapter. Only `s3` today (works with MinIO). |
 | `PAYMENT_PROVIDER` | yes | `mock` | Payment adapter. Only `mock` today. |
 | `KYC_PROVIDER` | yes | `mock` | KYC adapter. Only `mock` today. |
@@ -143,14 +168,14 @@ src/
     ports.ts   Interfaces the domain needs: UserRepository, FileStorage, PaymentGateway,
                KycProvider, Clock, plus KycSubmissionRepository, WalletRepository,
                PasswordHasher, IdGenerator, ReadinessProbe.
-    *.service.ts  UserService, KycService, WalletService.
+    *.service.ts  UserService, KycService, WalletService, AdminService.
   adapters/    Implementations of the ports: prisma/, s3/, mock/, system/ (clock, ids, scrypt).
   app/         NestJS wiring. adapters.module.ts is the only place that picks an adapter,
                and it picks only from env config.
-  http/        Controllers, DTOs (which also define openapi.json), JWT guard, error mapping,
+  http/        Controllers, DTOs (which also define openapi.json), JWT and admin guards, error mapping,
                request logging.
   config/      Env validation.
-  scripts/     generate-openapi, ensure-bucket.
+  scripts/     generate-openapi, ensure-bucket, promote-admin.
 prisma/        Schema and migrations.
 test/          unit/ (domain with port fakes, config, adapters, architecture), integration/ (real
                Postgres) and api/ (every endpoint over HTTP). Port fakes live in test/fakes.ts.

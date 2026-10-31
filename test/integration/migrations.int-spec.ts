@@ -41,16 +41,18 @@ describe('prisma migrations', () => {
     expect(byName.users_email_key).toMatch(/UNIQUE INDEX .* \(email\)/);
     expect(byName.top_ups_user_id_idempotency_key_key).toMatch(/UNIQUE INDEX .* \(user_id, idempotency_key\)/);
 
-    const fks = await db.client.$queryRaw<{ table_name: string; delete_rule: string }[]>`
-      SELECT tc.table_name, rc.delete_rule
+    const fks = await db.client.$queryRaw<{ constraint_name: string; delete_rule: string }[]>`
+      SELECT tc.constraint_name, rc.delete_rule
       FROM information_schema.table_constraints tc
       JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name
       WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
-      ORDER BY tc.table_name`;
+      ORDER BY tc.constraint_name`;
     expect(fks).toEqual([
-      { table_name: 'kyc_submissions', delete_rule: 'CASCADE' },
-      { table_name: 'top_ups', delete_rule: 'CASCADE' },
-      { table_name: 'wallets', delete_rule: 'CASCADE' },
+      // An admin account being deleted must not delete the KYC records they reviewed.
+      { constraint_name: 'kyc_submissions_reviewed_by_fkey', delete_rule: 'SET NULL' },
+      { constraint_name: 'kyc_submissions_user_id_fkey', delete_rule: 'CASCADE' },
+      { constraint_name: 'top_ups_user_id_fkey', delete_rule: 'CASCADE' },
+      { constraint_name: 'wallets_user_id_fkey', delete_rule: 'CASCADE' },
     ]);
   });
 

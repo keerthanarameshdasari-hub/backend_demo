@@ -38,6 +38,8 @@ export interface Harness {
   probe: SwitchableProbe;
   /** Registers a fresh user and logs in. Returns the user id and its Authorization header. */
   signUp(kycStatus?: KycStatus): Promise<{ userId: string; email: string; token: string; auth: { Authorization: string } }>;
+  /** Like signUp, then makes the account an ADMIN (as the promote-admin script would). */
+  signUpAdmin(): Promise<{ userId: string; email: string; token: string; auth: { Authorization: string } }>;
   /** Signs a token the way the app does (same secret, issuer, algorithm), with any payload. */
   sign(payload: object, options?: { secret?: string; issuer?: string; expiresIn?: number }): Promise<string>;
   close(): Promise<void>;
@@ -80,6 +82,20 @@ export async function createHarness(envOverrides: Partial<Env> = {}): Promise<Ha
   await app.init();
   const http = request(app.getHttpServer());
 
+  async function signUp(kycStatus: KycStatus = 'NOT_STARTED') {
+    counter += 1;
+    const email = `user${counter}@example.com`;
+    const reg = await http
+      .post('/auth/register')
+      .send({ email, password: PASSWORD, fullName: `User ${counter}` })
+      .expect(201);
+    const login = await http.post('/auth/login').send({ email, password: PASSWORD }).expect(200);
+    const userId = reg.body.id as string;
+    if (kycStatus !== 'NOT_STARTED') await users.updateKycStatus(userId, kycStatus);
+    const token = login.body.accessToken as string;
+    return { userId, email, token, auth: { Authorization: `Bearer ${token}` } };
+  }
+
   return {
     app,
     http,
@@ -91,18 +107,11 @@ export async function createHarness(envOverrides: Partial<Env> = {}): Promise<Ha
     kycProvider,
     payments,
     probe,
-    async signUp(kycStatus = 'NOT_STARTED') {
-      counter += 1;
-      const email = `user${counter}@example.com`;
-      const reg = await http
-        .post('/auth/register')
-        .send({ email, password: PASSWORD, fullName: `User ${counter}` })
-        .expect(201);
-      const login = await http.post('/auth/login').send({ email, password: PASSWORD }).expect(200);
-      const userId = reg.body.id as string;
-      if (kycStatus !== 'NOT_STARTED') await users.updateKycStatus(userId, kycStatus);
-      const token = login.body.accessToken as string;
-      return { userId, email, token, auth: { Authorization: `Bearer ${token}` } };
+    signUp,
+    async signUpAdmin() {
+      const account = await signUp();
+      await users.updateRole(account.userId, 'ADMIN');
+      return account;
     },
     async sign(payload, options = {}) {
       const jwt = new JwtService({ secret: options.secret ?? env.JWT_SECRET });

@@ -12,14 +12,18 @@ import type {
   KycSubmission,
   KycSubmissionRepository,
   KycVerificationRequest,
+  Page,
+  PageRequest,
   PasswordHasher,
   PaymentGateway,
   PaymentRequest,
   PaymentResult,
   ReadinessProbe,
   TopUp,
+  TopUpStatus,
   User,
   UserRepository,
+  UserRole,
   Wallet,
   WalletRepository,
 } from '../src/domain';
@@ -71,6 +75,23 @@ export class InMemoryUsers implements UserRepository {
     if (!u) throw new Error('missing user');
     u.kycStatus = status;
   }
+  async updateRole(userId: string, role: UserRole): Promise<void> {
+    const u = this.rows.get(userId);
+    if (!u) throw new Error('missing user');
+    u.role = role;
+  }
+  async findByIds(ids: readonly string[]): Promise<User[]> {
+    return ids.flatMap((id) => (this.rows.has(id) ? [{ ...this.rows.get(id)! }] : []));
+  }
+  async list({ kycStatus, limit, offset }: { kycStatus?: KycStatus } & PageRequest): Promise<Page<User>> {
+    const matching = newestFirst([...this.rows.values()]).filter((u) => !kycStatus || u.kycStatus === kycStatus);
+    return { items: matching.slice(offset, offset + limit).map((u) => ({ ...u })), total: matching.length };
+  }
+}
+
+/** createdAt descending, then id descending: the order the Prisma adapters use. */
+function newestFirst<T extends { id: string; createdAt: Date }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 }
 
 export class InMemoryKyc implements KycSubmissionRepository {
@@ -88,6 +109,15 @@ export class InMemoryKyc implements KycSubmissionRepository {
   async findLatestByUser(userId: string): Promise<KycSubmission | null> {
     const rows = this.rows.filter((r) => r.userId === userId);
     return rows.length ? { ...rows[rows.length - 1]! } : null;
+  }
+  async findById(id: string): Promise<KycSubmission | null> {
+    const row = this.rows.find((r) => r.id === id);
+    return row ? { ...row } : null;
+  }
+  /** Insertion order stands in for createdAt: last inserted is newest. */
+  async list({ status, limit, offset }: { status?: KycStatus } & PageRequest): Promise<Page<KycSubmission>> {
+    const matching = [...this.rows].reverse().filter((r) => !status || r.status === status);
+    return { items: matching.slice(offset, offset + limit).map((r) => ({ ...r })), total: matching.length };
   }
 }
 
@@ -116,6 +146,18 @@ export class InMemoryWallets implements WalletRepository {
       .reverse()
       .slice(0, limit)
       .map((t) => ({ ...t }));
+  }
+  /** Insertion order stands in for createdAt: last inserted is newest. */
+  async listAllTopUps({
+    userId,
+    status,
+    limit,
+    offset,
+  }: { userId?: string; status?: TopUpStatus } & PageRequest): Promise<Page<TopUp>> {
+    const matching = [...this.topUps]
+      .reverse()
+      .filter((t) => (!userId || t.userId === userId) && (!status || t.status === status));
+    return { items: matching.slice(offset, offset + limit).map((t) => ({ ...t })), total: matching.length };
   }
   async completeTopUp(id: string, providerReference: string, completedAt: Date) {
     const t = this.topUps.find((x) => x.id === id)!;
@@ -242,8 +284,46 @@ export function aUser(overrides: Partial<User> = {}): User {
     email: 'asha@example.com',
     fullName: 'Asha Rao',
     passwordHash: 'hashed:irrelevant',
+    role: 'USER',
     kycStatus: 'NOT_STARTED',
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+/** A KYC submission row for seeding fakes; override any field. */
+export function aSubmission(overrides: Partial<KycSubmission> = {}): KycSubmission {
+  return {
+    id: 's1',
+    userId: 'u1',
+    documentType: 'PASSPORT',
+    documentNumberLast4: '4567',
+    documentKey: 'kyc/u1/s1.png',
+    documentMimeType: 'image/png',
+    documentSizeBytes: 12,
+    status: 'REJECTED',
+    providerReference: 'kyc_ref',
+    decisionReason: 'document_expired',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    decidedAt: new Date('2026-01-01T00:00:01.000Z'),
+    reviewedBy: null,
+    ...overrides,
+  };
+}
+
+/** A top-up row for seeding fakes; override any field. */
+export function aTopUp(overrides: Partial<TopUp> = {}): TopUp {
+  return {
+    id: 't1',
+    userId: 'u1',
+    amountMinor: 50_000,
+    currency: 'INR',
+    status: 'SUCCEEDED',
+    idempotencyKey: null,
+    providerReference: 'pay_ref',
+    failureReason: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    completedAt: new Date('2026-01-01T00:00:01.000Z'),
     ...overrides,
   };
 }
