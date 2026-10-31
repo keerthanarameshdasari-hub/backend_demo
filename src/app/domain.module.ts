@@ -1,6 +1,7 @@
 import { Global, Module, type Provider } from '@nestjs/common';
 import type { Env } from '../config/env';
 import {
+  AdminService,
   type Clock,
   type FileStorage,
   type IdGenerator,
@@ -62,8 +63,14 @@ const providers: Provider[] = [
         providerTimeoutMs: env.PROVIDER_TIMEOUT_MS,
       }),
   },
+  {
+    provide: AdminService,
+    inject: [T.USER_REPOSITORY, T.KYC_SUBMISSION_REPOSITORY, T.WALLET_REPOSITORY, T.CLOCK],
+    useFactory: (users: UserRepository, submissions: KycSubmissionRepository, wallets: WalletRepository, clock: Clock) =>
+      new AdminService(users, submissions, wallets, clock),
+  },
 ];
 
 @Global()
-@Module({ providers, exports: [UserService, KycService, WalletService] })
+@Module({ providers, exports: [UserService, KycService, WalletService, AdminService] })
 export class DomainModule {}

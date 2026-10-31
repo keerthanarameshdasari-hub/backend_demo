@@ -1,3 +1,4 @@
+export * from './admin.service';
 export * from './deadline';
 export * from './errors';
 export * from './kyc.service';

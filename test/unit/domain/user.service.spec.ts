@@ -22,13 +22,14 @@ function setup() {
 const valid = { email: 'asha@example.com', password: 'long-enough-pw', fullName: 'Asha' };
 
 describe('UserService.register', () => {
-  it('registers with a normalised email and trimmed name, KYC not started', async () => {
+  it('registers with a normalised email and trimmed name, as a USER with KYC not started', async () => {
     const { service, clock } = setup();
     const user = await service.register({ email: '  Asha@Example.COM ', password: 'long-enough-pw', fullName: ' Asha ' });
     expect(user).toEqual({
       id: '00000000-0000-4000-8000-000000000001',
       email: 'asha@example.com',
       fullName: 'Asha',
+      role: 'USER',
       kycStatus: 'NOT_STARTED',
       createdAt: clock.now(),
     });
